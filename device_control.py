@@ -39,13 +39,12 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
 
     # -------------------------------------ELTEX-ESR
     if vendor.lower() == 'eltex-esr':
-        intf_list = findall(rf"(\S+\d)\s+\S+\s+\S+\s+(\S*{interface_filter}\S*)", output)
+        # Для Eltex ESR-12VF выводим всю таблицу MAC адресов
         mac_output = ''
-        for intf in intf_list:
-            telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
-            telnet_session.expect('# ')
-            m_output = sub('.+\nVID', 'VID', str(telnet_session.before.decode('utf-8')))
-            mac_output += f"\n    Интерфейс: {intf[1]}\n\n{m_output}"
+        telnet_session.sendline(f'show mac address-table ')
+        telnet_session.expect('# ')
+        m_output = sub('.+\nVID', 'VID', str(telnet_session.before.decode('utf-8')))
+        mac_output += f"\n{m_output}"
         return mac_output
 
     # -------------------------------------ELTEX-MES
@@ -62,12 +61,20 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
         for line in result:
             if (
                     (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
-                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
-                        'SVSL' not in line[2].upper() and             # - интерфейсов, которые содержат "SVSL"
-                        'POWER_MONITORING' not in line[2].upper())    # - POWER_MONITORING
-                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+                    or (not_uplinks and                                 # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[3].upper() and                    # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[3].upper())           # - POWER_MONITORING
+                        and not ('down' in line[2].lower() and not line[3])  # - пустые интерфейсы с LinkDown
+                    and 'down' not in line[1].lower()                   # И только интерфейсы со статусом admin up
             ):  # Если описание интерфейсов удовлетворяет фильтру
-                intf_to_check.append([line[0], line[2]])
+                intf_to_check.append([line[0], line[3]])
+
+        if not intf_to_check:
+            if not_uplinks:
+                return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
+            else:
+                return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
+                       f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
@@ -98,12 +105,21 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
         for line in output:
             if (
                     (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
-                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
-                        'SVSL' not in line[3].upper() and             # - интерфейсов, которые содержат "SVSL"
-                        'POWER_MONITORING' not in line[3].upper())    # - POWER_MONITORING
-                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+                    or (not_uplinks and                                     # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[3].upper() and                       # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[3].upper())              # - POWER_MONITORING
+                        and not ('down' in line[2].lower() and not line[3])     # - пустые интерфейсы с LinkDown
+                    and 'disabled' not in line[1].lower()                   # И только интерфейсы со статусом admin up
             ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append(line[0])
+
+        if not intf_to_check:
+            if not_uplinks:
+                return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
+            else:
+                return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
+                       f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
+
         for intf in intf_to_check:
             telnet_session.sendline(f'show fdb port {interface_normal_view(intf)}')
             telnet_session.expect('#')
@@ -117,41 +133,52 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
 
     # ----------------------------------------CISCO
     elif vendor == 'cisco':
-        with open(f'{root_dir}/templates/int_des_cisco.template', 'r') as template_file:
-            int_des_ = textfsm.TextFSM(template_file)
-            result = int_des_.ParseText(output)  # Ищем интерфейсы
 
         intf_to_check = []  # Интерфейсы для проверки
         mac_output = ''     # Вывод MAC
         not_uplinks = True if interface_filter == '--only-abonents' else False
 
-        for line in result:
+        for line in output:
             if (
                     (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
-                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
-                        'SVSL' not in line[2].upper() and             # - интерфейсов, которые содержат "SVSL"
-                        'POWER_MONITORING' not in line[2].upper())    # - POWER_MONITORING
-                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+                    or (not_uplinks and                                     # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[3].upper() and                       # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[3].upper())              # - POWER_MONITORING
+                        and not ('down' in line[2].lower() and not line[3])     # - пустые интерфейсы с LinkDown
+                    and 'down' not in line[1].lower()                       # И только интерфейсы со статусом admin up
+                    and 'VL' not in line[0].upper()                         # И не VLAN'ы
             ):  # Если описание интерфейсов удовлетворяет фильтру
-                intf_to_check.append([line[0], line[2]])
+                intf_to_check.append([line[0], line[3]])
+
+        if not intf_to_check:
+            if not_uplinks:
+                return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
+            else:
+                return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
+                       f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
-            mac_output += f'\n    Интерфейс: {interface_normal_view(intf[1])}\n'
+            telnet_session.expect(f'-------------------')
+            telnet_session.expect('Vla')
+            separator_str = '─' * len(f'Интерфейс: {interface_normal_view(intf[1])}')
+            mac_output += f'\n    Интерфейс: {interface_normal_view(intf[1])}\n' \
+                          f'    {separator_str}\n' \
+                          f'Vla'
             while True:
-                match = telnet_session.expect([r'#$', "--More--", pexpect.TIMEOUT])
+                match = telnet_session.expect(['Total Mac Addresses', r'#$', "--More--", pexpect.TIMEOUT])
                 page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
                     "        ", '')
                 mac_output += page.strip()
-                if match == 0:
+                if match <= 1:
                     break
-                elif match == 1:
+                elif match == 2:
                     telnet_session.send(" ")
                     mac_output += '\n'
                 else:
                     print("    Ошибка: timeout")
                     break
-            mac_output += '\n'
+            mac_output += '\n\n'
         return mac_output
 
     # ------------------------------------HUAWEI_FIRST_TYPE
@@ -170,6 +197,13 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
                     and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
             ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append([line[0], line[3]])
+
+        if not intf_to_check:
+            if not_uplinks:
+                return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
+            else:
+                return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
+                       f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'display mac-address {interface_normal_view(intf[0])}')
@@ -208,6 +242,13 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
                     and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
             ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append([line[0], line[2]])
+
+        if not intf_to_check:
+            if not_uplinks:
+                return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
+            else:
+                return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
+                       f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'display mac-address interface {interface_normal_view(intf[0])}')
@@ -266,7 +307,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     break
             # ZTE
             if bool(findall(r' ZTE Corporation:', version)):
-                print("    Тип оборудования: ZTE\nНе поддерживается в данной версии")
+                print("    Тип оборудования: ZTE\nНе поддерживается в данной версии!🐣")
 
             # ---------------------------------Huawei
             elif bool(findall(r'Unrecognized command', version)):
@@ -357,8 +398,6 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 with open(f'{root_dir}/templates/int_des_cisco.template', 'r') as template_file:
                     int_des_ = textfsm.TextFSM(template_file)
                     result = int_des_.ParseText(output)  # Ищем интерфейсы
-                for i in result:
-                    print(i)
 
                 print(
                     tabulate(result,
@@ -371,7 +410,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     print(
                         show_mac(
                             telnet_session=telnet,
-                            output=output,
+                            output=result,
                             vendor='cisco',
                             interface_filter=interface_filter
                         )
@@ -481,6 +520,9 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                              )
                 )
 
+                if 'mac' in mode:
+                    print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉" )
+
             # ----------------------------Edge-Core
             elif bool(findall(r'Hardware version', version)):
                 print("    Тип оборудования: Edge-Core")
@@ -535,12 +577,10 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                             break
                     else:
                         link_stat = 'Down'
-
                     result.append([interface,
                                    admin_status,
                                    link_stat,
                                    description])
-
                 print(
                     tabulate(result,
                              headers=['\nInterface', 'Admin\nStatus',  '\nLink', '\nDescription'],
@@ -548,9 +588,12 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                              )
                 )
 
+                if 'mac' in mode:
+                    print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉" )
+
             # Zyxel
             elif bool(findall(r'ZyNOS', version)):
-                print("    Тип оборудования: Zyxel\nНе поддерживается в данной версии")
+                print("    Тип оборудования: Zyxel\nНе поддерживается в данной версии!🐣")
 
             # ------------------------------------Eltex
             elif bool(findall(r'Active-image: |Boot version:', version)):
@@ -661,6 +704,8 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                              tablefmt="fancy_grid"
                              )
                 )
+                if 'mac' in mode:
+                    print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉" )
 
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")
