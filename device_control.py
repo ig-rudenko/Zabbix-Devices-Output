@@ -60,8 +60,13 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
             result = int_des_.ParseText(output)  # Ищем интерфейсы
 
         for line in result:
-            if (not not_uplinks and bool(findall(interface_filter, line[2]))) or \
-                    (not_uplinks and 'SVSL' not in line[2] and line[2]):
+            if (
+                    (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
+                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[2].upper() and             # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[2].upper())    # - POWER_MONITORING
+                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+            ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append([line[0], line[2]])
 
         for intf in intf_to_check:  # для каждого интерфейса
@@ -91,8 +96,13 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
         not_uplinks = True if interface_filter == '--only-abonents' else False
 
         for line in output:
-            if (not not_uplinks and bool(findall(interface_filter, line[3]))) or \
-                    (not_uplinks and 'SVSL' not in line[3] and line[3]):
+            if (
+                    (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
+                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[3].upper() and             # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[3].upper())    # - POWER_MONITORING
+                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+            ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append(line[0])
         for intf in intf_to_check:
             telnet_session.sendline(f'show fdb port {interface_normal_view(intf)}')
@@ -116,8 +126,13 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
         not_uplinks = True if interface_filter == '--only-abonents' else False
 
         for line in result:
-            if (not not_uplinks and bool(findall(interface_filter, line[2]))) or (
-                    not_uplinks and 'SVSL' not in line[2] and line[2]):     # Если описание интерфейсов удовлетворяет фильтру
+            if (
+                    (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
+                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[2].upper() and             # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[2].upper())    # - POWER_MONITORING
+                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+            ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append([line[0], line[2]])
 
         for intf in intf_to_check:  # для каждого интерфейса
@@ -146,8 +161,14 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
         not_uplinks = True if interface_filter == '--only-abonents' else False
 
         for line in output:
-            if (not not_uplinks and bool(findall(interface_filter, line[3]))) or (
-                    not_uplinks and 'SVSL' not in line[3] and line[3]):  # Если описание интерфейсов удовлетворяет фильтру
+            if (
+                    (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
+                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[3].upper() and             # - интерфейсов, которые содержат "SVSL"
+                        'HUAWEI, QUIDWAY' not in line[3].upper() and  # - "заглушек" типа "HUAWEI, Quidway Series
+                        'POWER_MONITORING' not in line[3].upper())    # - POWER_MONITORING
+                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+            ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append([line[0], line[3]])
 
         for intf in intf_to_check:  # для каждого интерфейса
@@ -173,11 +194,18 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
 
         intf_to_check = []  # Интерфейсы для проверки
         mac_output = ''  # Вывод MAC
+        # Все интерфейсы, кроме аплинков
         not_uplinks = True if interface_filter == '--only-abonents' else False
 
         for line in output:
-            if (not not_uplinks and bool(findall(interface_filter, line[2]))) or (
-                    not_uplinks and 'SVSL' not in line[2] and line[2]):  # Если описание интерфейсов удовлетворяет фильтру
+            if (
+                    (not not_uplinks and bool(findall(interface_filter, line[2])))  # интерфейсы по фильтру
+                    or (not_uplinks and                          # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[2].upper() and             # - интерфейсов, которые содержат "SVSL"
+                        'HUAWEI, QUIDWAY' not in line[2].upper() and  # - "заглушек" типа "HUAWEI, Quidway Series
+                        'POWER_MONITORING' not in line[2].upper())    # - POWER_MONITORING
+                    and 'down' not in line[1].lower()            # И только интерфейсы со статусом admin up
+            ):  # Если описание интерфейсов удовлетворяет фильтру
                 intf_to_check.append([line[0], line[2]])
 
         for intf in intf_to_check:  # для каждого интерфейса
@@ -209,8 +237,9 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
     with pexpect.spawn(f"telnet {ip}") as telnet:
         try:
             for user, password in auth_list:
-                login_stat = telnet.expect(["[Ll]ogin", "[Uu]ser", "[Nn]ame", 'Unable to connect'], timeout=20)
-                if login_stat == 3:
+                login_stat = telnet.expect(["[Ll]ogin", "[Uu]ser", "[Nn]ame", 'Unable to connect', 'Connection closed'],
+                                           timeout=20)
+                if login_stat >= 3:
                     print("    Telnet недоступен!")
                     return False
                 telnet.sendline(user)
