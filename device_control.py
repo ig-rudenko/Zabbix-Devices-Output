@@ -173,6 +173,7 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'display mac-address {interface_normal_view(intf[0])}')
+            telnet_session.expect(f'{interface_normal_view(intf[0])}')
             mac_output += f'\n    Интерфейс: {interface_normal_view(intf[1])}\n'
             while True:
                 match = telnet_session.expect([r'<', "  ---- More ----", pexpect.TIMEOUT])
@@ -210,9 +211,11 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'display mac-address interface {interface_normal_view(intf[0])}')
-            mac_output += f'\n    Интерфейс: {interface_normal_view(intf[1])}\n'
+            telnet_session.expect(f'{interface_normal_view(intf[0])}')
+            separator_str = '─' * len(f'Интерфейс: {interface_normal_view(intf[1])}')
+            mac_output += f'\n    Интерфейс: {interface_normal_view(intf[1])}\n    {separator_str}\n'
             while True:
-                match = telnet_session.expect([r'<', "  ---- More ----", pexpect.TIMEOUT])
+                match = telnet_session.expect(['  ---  ', "  ---- More ----", pexpect.TIMEOUT])
                 page = str(telnet_session.before.decode('utf-8'))
                 mac_output += page.strip()
                 if match == 0:
@@ -223,7 +226,7 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
                 else:
                     print("    Ошибка: timeout")
                     break
-            mac_output += '\n'
+            mac_output += '\n\n'
         return mac_output
 
 
