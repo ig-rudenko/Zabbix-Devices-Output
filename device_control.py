@@ -273,12 +273,20 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     int_des_ = textfsm.TextFSM(template_file)
                     result = int_des_.ParseText(output)  # Ищем интерфейсы
 
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
+                if huawei_type == 'huawei-2':
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
+                else:
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Port\nStatus', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
 
                 if 'mac' in mode:
                     print(
