@@ -1,0 +1,7 @@
+Value INTF (\S+)
+Value PHY ((up|down|\*down)(\(l\)){0,})
+Value PROTOCOL ((up|down)(\(l\)|\(s\)|\(e\)|\(d\)|--){0,1})
+Value DESCRIPTION (.*)
+
+Start
+  ^${INTF}\s+${PHY}\s+${PROTOCOL}\s+${DESCRIPTION} -> Record

@@ -1,0 +1,4 @@
+Value LINK (Down|Up)
+
+Start
+  ^(\S\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+${LINK}\s+\S+\s+\S+\s+ -> Record
