@@ -216,7 +216,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 telnet.sendline(user)
                 telnet.expect("[Pp]ass")
                 telnet.sendline(password)
-                match = telnet.expect([']', '>', '#', 'Failed to send authen-req', "[Ll]ogin", "[Uu]ser\s", "[Nn]ame"])
+                match = telnet.expect([r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin", "[Uu]ser\s", "[Nn]ame"])
                 if match < 3:
                     break
             else:   # Если не удалось зайти под логинами и паролями из списка аутентификации
@@ -317,10 +317,13 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 with open(f'{root_dir}/templates/int_des_cisco.template', 'r') as template_file:
                     int_des_ = textfsm.TextFSM(template_file)
                     result = int_des_.ParseText(output)  # Ищем интерфейсы
+                for i in result:
+                    print(i)
 
                 print(
                     tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription']
+                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                             tablefmt="fancy_grid"
                              )
                 )
 
@@ -445,7 +448,9 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 output = ''
                 while True:
                     match = telnet.expect(['---More---', '#', pexpect.TIMEOUT])
-                    page = str(telnet.before.decode('utf-8'))
+                    page = str(telnet.before.decode('utf-8')).replace(
+                        '\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08          \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08',
+                        '')
                     output += page.strip()
                     if match == 0:
                         telnet.sendline(' ')
@@ -454,16 +459,51 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     else:
                         print("    Ошибка: timeout")
                         break
+
+                telnet.sendline('show interfaces status')
+                telnet.expect('show interfaces status')
+                des_output = ''
+                while True:
+                    match = telnet.expect(['---More---', '#', pexpect.TIMEOUT])
+                    page = str(telnet.before.decode('utf-8')).replace(
+                        '\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08          \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08',
+                        '')
+                    des_output += page.strip()
+                    if match == 0:
+                        telnet.sendline(' ')
+                    elif match == 1:
+                        break
+                    else:
+                        print("    Ошибка: timeout")
+                        break
+                with open(f'{root_dir}/templates/int_des_edge_core.template', 'r') as template_file:
+                    int_des_ = textfsm.TextFSM(template_file)
+                    result_des = int_des_.ParseText(des_output)  # Ищем интерфейсы
+                for i in result_des:
+                    print(i)
+
                 result = []
                 intf_raw = findall(r'(interface (.+\n)+?!)', str(output))
                 for x in intf_raw:
-                    result.append([findall(r'interface (\S*\s*\S*\d)', str(x))[0],
-                                   'admin down' if 'shutdown' in str(x) else 'up',
-                                   findall(r'description (\S+)', str(x))[0] if len(
-                                       findall(r'description (\S+)', str(x))) > 0 else ''])
+                    interface = findall(r'interface (\S*\s*\S*\d)', str(x))[0]
+                    admin_status = 'admin down' if 'shutdown' in str(x) else 'up'
+                    description = findall(r'description (\S+?(?=\\|\s))', str(x))[0] if len(
+                                       findall(r'description (\S+)', str(x))) > 0 else ''
+                    for line in result_des:
+                        if interface_normal_view(line[0]) == interface_normal_view(interface):
+                            link_stat = line[3]
+                            break
+                    else:
+                        link_stat = 'Down'
+
+                    result.append([interface,
+                                   admin_status,
+                                   link_stat,
+                                   description])
+
                 print(
                     tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nDescription'],
+                             headers=['\nInterface', 'Admin\nStatus',  '\nLink', '\nDescription'],
                              tablefmt="fancy_grid"
                              )
                 )
@@ -474,7 +514,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
 
             # ------------------------------------Eltex
             elif bool(findall(r'Active-image: |Boot version:', version)):
-                print("    Eltex")
+                print("    Тип оборудования: Eltex")
                 telnet.sendline("show int des")
                 output = ''
                 while True:
@@ -521,6 +561,66 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                             interface_filter=interface_filter
                         )
                     )
+
+            # -----------------------------------Extreme
+            elif bool(findall(r'ExtremeXOS', version)):
+                print("    Тип оборудования: Extreme")
+
+                # LINKS
+                telnet.sendline('show ports information')
+                output_links = ''
+                while True:
+                    match = telnet.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
+                    page = str(telnet.before.decode('utf-8')).replace("[42D", '').replace(
+                        "\x1b[m\x1b[60;D\x1b[K", '')
+                    output_links += page.strip()
+                    if match == 0:
+                        break
+                    elif match == 1:
+                        telnet.send(" ")
+                        output_links += '\n'
+                    else:
+                        print("    Ошибка: timeout")
+                        break
+                with open(f'{root_dir}/templates/int_des_extreme_links.template', 'r') as template_file:
+                    int_des_ = textfsm.TextFSM(template_file)
+                    result_port_state = int_des_.ParseText(output_links)  # Ищем интерфейсы
+                for position, line in enumerate(result_port_state):
+                    if result_port_state[position][1].startswith('D'):
+                        result_port_state[position][1] = 'Disable'
+                    elif result_port_state[position][1].startswith('E'):
+                        result_port_state[position][1] = 'Enable'
+                    else:
+                        result_port_state[position][1] = 'None'
+
+                # DESC
+                telnet.sendline('show ports description')
+                output_des = ''
+                while True:
+                    match = telnet.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
+                    page = str(telnet.before.decode('utf-8')).replace("[42D", '').replace(
+                        "\x1b[m\x1b[60;D\x1b[K", '')
+                    output_des += page.strip()
+                    if match == 0:
+                        break
+                    elif match == 1:
+                        telnet.send(" ")
+                        output_des += '\n'
+                    else:
+                        print("    Ошибка: timeout")
+                        break
+                with open(f'{root_dir}/templates/int_des_extreme_des.template', 'r') as template_file:
+                    int_des_ = textfsm.TextFSM(template_file)
+                    result_des = int_des_.ParseText(output_des)  # Ищем desc
+
+                result = [result_port_state[n] + result_des[n] for n in range(len(result_port_state))]
+
+                print(
+                    tabulate(result,
+                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                             tablefmt="fancy_grid"
+                             )
+                )
 
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")
