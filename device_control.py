@@ -37,8 +37,58 @@ def interface_normal_view(interface) -> str:
 
 def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) -> str:
 
+    # ----------------------------------------ZTE
+    if vendor.lower() == 'zte':
+        intf_to_check = []
+        mac_output = ''
+        not_uplinks = True if interface_filter == '--only-abonents' else False
+
+        for line in output:
+            if (
+                    (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
+                    or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
+                        'SVSL' not in line[3].upper() and  # - интерфейсов, которые содержат "SVSL"
+                        'POWER_MONITORING' not in line[3].upper())  # - POWER_MONITORING
+                    and not ('down' in line[2].lower() and not line[3])  # - пустые интерфейсы с LinkDown
+                    and 'disabled' not in line[1].lower()  # И только интерфейсы со статусом admin up
+            ):  # Если описание интерфейсов удовлетворяет фильтру
+                intf_to_check.append([line[0], line[3]])
+
+        if not intf_to_check:
+            if not_uplinks:
+                return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
+            else:
+                return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
+                       f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
+
+        for intf in intf_to_check:
+            telnet_session.sendline(f'show fdb port {interface_normal_view(intf[0])} detail')
+            telnet_session.expect('detail')
+            mc_output = ''
+            while True:
+                match = telnet_session.expect([r'#$', "----- more -----", pexpect.TIMEOUT])
+                page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+                    "        ", '')
+                mc_output += page.strip()
+                if match == 0:
+                    break
+                elif match == 1:
+                    telnet_session.send(" ")
+                    mc_output += '\n'
+                else:
+                    print("    Ошибка: timeout")
+                    break
+            mc_output = sub(r'Fixed:\s*\d+([\W\S]+)', ' ', mc_output)
+            mc_output = sub(r'MacAddressVlan', '  Mac Address       Vlan', mc_output)
+            mc_output = sub(r'%\s+No matching mac address![\W\S]+', '  No matching mac address!', mc_output)
+            separator_str = '─'*len(f'Интерфейс: {intf[0]} ({intf[1]})')
+            mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n{mc_output}\n\n"
+        if not intf_to_check:
+            return f'Не найдены запрашиваемые интерфейсы на данном оборудовании!'
+        return mac_output
+
     # -------------------------------------ELTEX-ESR
-    if vendor.lower() == 'eltex-esr':
+    elif vendor.lower() == 'eltex-esr':
         # Для Eltex ESR-12VF выводим всю таблицу MAC адресов
         mac_output = ''
         telnet_session.sendline(f'show mac address-table ')
@@ -305,16 +355,19 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     telnet.sendline(' ')
                 else:
                     break
-            # ZTE
+            # ---------------------------------ZTE
             if findall(r' ZTE Corporation:', version):
                 print("    Тип оборудования: ZTE")
+                telnet.sendline('enable')
+                telnet.expect('[Pp]ass')
+                telnet.sendline('sevaccess')
+                telnet.expect('#')
                 telnet.sendline('show port')
                 output = ''
                 while True:
-                    match = telnet.expect([r'>$', "----- more -----", pexpect.TIMEOUT])
+                    match = telnet.expect([r'#$', "----- more -----", pexpect.TIMEOUT])
                     page = str(telnet.before.decode('utf-8')).replace("[42D", '').replace(
                         "        ", '')
-                    print(match)
                     output += page.strip()
                     if match == 0:
                         break
@@ -324,7 +377,6 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     else:
                         print("    Ошибка: timeout")
                         break
-                print(output)
                 with open(f'{root_dir}/templates/int_des_zte.template', 'r') as template_file:
                     int_des_ = textfsm.TextFSM(template_file)
                     result = int_des_.ParseText(output)  # Ищем интерфейсы
@@ -335,6 +387,16 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                              tablefmt="fancy_grid"
                              )
                 )
+
+                if 'mac' in mode:
+                    print(
+                        show_mac(
+                            telnet_session=telnet,
+                            output=result,
+                            vendor='zte',
+                            interface_filter=interface_filter
+                        )
+                    )
 
             # ---------------------------------Huawei
             elif findall(r'Unrecognized command', version):
