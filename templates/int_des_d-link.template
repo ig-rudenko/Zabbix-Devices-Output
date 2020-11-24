@@ -5,4 +5,4 @@ Value DESCRIPTION (\S*)
 
 Start
   ^\s*${Port}\s+${State}\s+\S+\s+${Connection}\s+\S+\s+(\S+\s+){0,1}
-  ^.*\s(Desc|Description): ${DESCRIPTION} -> Record
+  ^.*\s*(Desc|Description): ${DESCRIPTION} -> Record

@@ -111,7 +111,7 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
                         and not ('down' in line[2].lower() and not line[3])     # - пустые интерфейсы с LinkDown
                     and 'disabled' not in line[1].lower()                   # И только интерфейсы со статусом admin up
             ):  # Если описание интерфейсов удовлетворяет фильтру
-                intf_to_check.append(line[0])
+                intf_to_check.append([line[0], line[3]])
 
         if not intf_to_check:
             if not_uplinks:
@@ -121,12 +121,12 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
                        f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
         for intf in intf_to_check:
-            telnet_session.sendline(f'show fdb port {interface_normal_view(intf)}')
+            telnet_session.sendline(f'show fdb port {interface_normal_view(intf[0])}')
             telnet_session.expect('#')
             mc_output = sub(r'[\W\S]+VID', 'VID', str(telnet_session.before.decode('utf-8')))
             mc_output = sub(r'Total Entries[\s\S]+', ' ', mc_output)
-
-            mac_output += f"\n    Интерфейс: {intf}\n\n{mc_output}"
+            separator_str = '─'*len(f'Интерфейс: {intf[0]} ({intf[1]})')
+            mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n{mc_output}"
         if not intf_to_check:
             return f'Не найдены запрашиваемые интерфейсы на данном оборудовании!'
         return mac_output
@@ -289,7 +289,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 telnet.sendline(user)
                 telnet.expect("[Pp]ass")
                 telnet.sendline(password)
-                match = telnet.expect([r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin", "[Uu]ser\s", "[Nn]ame"])
+                match = telnet.expect([r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin(?!-)", "[Uu]ser\s", "[Nn]ame"])
                 if match < 3:
                     break
             else:   # Если не удалось зайти под логинами и паролями из списка аутентификации
@@ -306,11 +306,38 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 else:
                     break
             # ZTE
-            if bool(findall(r' ZTE Corporation:', version)):
-                print("    Тип оборудования: ZTE\nНе поддерживается в данной версии!🐣")
+            if findall(r' ZTE Corporation:', version):
+                print("    Тип оборудования: ZTE")
+                telnet.sendline('show port')
+                output = ''
+                while True:
+                    match = telnet.expect([r'>$', "----- more -----", pexpect.TIMEOUT])
+                    page = str(telnet.before.decode('utf-8')).replace("[42D", '').replace(
+                        "        ", '')
+                    print(match)
+                    output += page.strip()
+                    if match == 0:
+                        break
+                    elif match == 1:
+                        telnet.send(" ")
+                        output += '\n'
+                    else:
+                        print("    Ошибка: timeout")
+                        break
+                print(output)
+                with open(f'{root_dir}/templates/int_des_zte.template', 'r') as template_file:
+                    int_des_ = textfsm.TextFSM(template_file)
+                    result = int_des_.ParseText(output)  # Ищем интерфейсы
+
+                print(
+                    tabulate(result,
+                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                             tablefmt="fancy_grid"
+                             )
+                )
 
             # ---------------------------------Huawei
-            elif bool(findall(r'Unrecognized command', version)):
+            elif findall(r'Unrecognized command', version):
                 print("    Тип оборудования: Huawei")
                 telnet.sendline("dis int des")
                 output = ''
@@ -372,7 +399,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     )
 
             # ---------------------------------Cisco
-            elif bool(findall(r'Cisco IOS', version)):
+            elif findall(r'Cisco IOS', version):
                 print("    Тип оборудования: Cisco")
                 if match == 1:
                     telnet.sendline('enable')
@@ -417,7 +444,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     )
 
             # -----------------------------D-Link
-            elif bool(findall(r'Next possible completions:', version)):
+            elif findall(r'Next possible completions:', version):
                 print("    Тип оборудования: D-Link")
                 telnet.sendline('enable admin')
                 if telnet.expect(["#", "[Pp]ass"]):
@@ -449,7 +476,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     )
 
             # ---------------------------Alcatel, Linksys
-            elif bool(findall(r'SW version\s+', version)):
+            elif findall(r'SW version\s+', version):
                 print("    Тип оборудования: Alcatel или Linksys")
                 telnet.sendline('show interfaces configuration')
                 port_state = ''
@@ -524,7 +551,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉" )
 
             # ----------------------------Edge-Core
-            elif bool(findall(r'Hardware version', version)):
+            elif findall(r'Hardware version', version):
                 print("    Тип оборудования: Edge-Core")
                 telnet.sendline('show running-config')
                 output = ''
@@ -592,11 +619,11 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉" )
 
             # Zyxel
-            elif bool(findall(r'ZyNOS', version)):
+            elif findall(r'ZyNOS', version):
                 print("    Тип оборудования: Zyxel\nНе поддерживается в данной версии!🐣")
 
             # ------------------------------------Eltex
-            elif bool(findall(r'Active-image: |Boot version:', version)):
+            elif findall(r'Active-image: |Boot version:', version):
                 print("    Тип оборудования: Eltex")
                 telnet.sendline("show int des")
                 output = ''
@@ -646,7 +673,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     )
 
             # -----------------------------------Extreme
-            elif bool(findall(r'ExtremeXOS', version)):
+            elif findall(r'ExtremeXOS', version):
                 print("    Тип оборудования: Extreme")
 
                 # LINKS
@@ -707,6 +734,9 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 if 'mac' in mode:
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉" )
 
+            # Q-TECH
+            elif findall(r'QTECH', version):
+                print("    Тип оборудования: Q-Tech\nНе поддерживается в данной версии!🐣")
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")
 
