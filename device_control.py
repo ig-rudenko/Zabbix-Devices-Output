@@ -128,14 +128,15 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
 
         for intf in intf_to_check:  # для каждого интерфейса
             telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
-            mac_output += f'\n    Интерфейс: {intf[1]}\n'
-            telnet_session.expect('Aging time')
-            mac_output += 'Aging time '
+            separator_str = '─'*len(f'Интерфейс: {intf[1]}')
+            mac_output += f'\n    Интерфейс: {intf[1]}\n    {separator_str}\n'
+            telnet_session.expect(r'Aging time is \d+ \S+')
+
             while True:
                 match = telnet_session.expect([r'#$', "More: <space>", pexpect.TIMEOUT])
                 page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
                     "        ", '')
-                mac_output += page.strip()
+                mac_output += f"    {page.strip()}"
                 if match == 0:
                     break
                 elif match == 1:
@@ -143,6 +144,11 @@ def show_mac(telnet_session, output: str, vendor: str, interface_filter: str) ->
                 else:
                     print("    Ошибка: timeout")
                     break
+            mac_output = sub('SVSL.+', '', mac_output)
+            mac_output = sub(r'(?<=\d)(?=\S\S:\S\S:\S\S:\S\S:\S\S:\S\S)', r'     ', mac_output)
+            mac_output = sub(r'Vlan\s+Mac\s+Address\s+Port\s+Type',
+                             '    Vlan          Mac_Address         Port       Type',
+                             mac_output)
             mac_output += '\n'
         return mac_output
 
@@ -705,8 +711,6 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                     else:
                         print("    Ошибка: timeout")
                         break
-                output = sub('.+\nInterface', 'Interface', output)
-                output = sub('\s+Admin Link\s+Ch       Port Mode \(VLAN\)[\s\S]+', '', output)
 
                 if bool(findall(r'Active-image:', version)):
                     eltex_type = 'eltex-mes'
