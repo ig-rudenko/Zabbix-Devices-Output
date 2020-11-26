@@ -7,7 +7,7 @@ import os
 import sys
 import textfsm
 from tabulate import tabulate
-from vendors import cisco, huawei, zte, d_link, alcatel_linksys, eltex, edge_core, extreme
+from vendors import cisco, huawei, zte, d_link, alcatel_linksys, eltex, edge_core, extreme, qtech
 from auth_list import auth_list
 
 root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
@@ -42,6 +42,10 @@ def show_mac(telnet_session, output, vendor: str, interface_filter: str) -> str:
     # HUAWEI_SECOND_TYPE
     elif vendor == 'huawei-2':
         return huawei.show_mac_huawei_2(telnet_session, output, interface_filter)
+
+    # Q-TECH
+    elif vendor == 'q-tech':
+        return qtech.show_mac(telnet_session, output, interface_filter)
 
 
 def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = 'NOMON'):
@@ -247,7 +251,23 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
 
             # Q-TECH
             elif findall(r'QTECH', version):
-                print("    Тип оборудования: Q-Tech\nНе поддерживается в данной версии!🐣")
+                print("    Тип оборудования: Q-Tech")
+                result = qtech.show_interfaces(telnet_session=telnet)
+                print(
+                    tabulate(result,
+                             headers=['\nInterface', 'Link\nStatus', '\nDescription'],
+                             tablefmt="fancy_grid"
+                             )
+                )
+            if 'mac' in mode:
+                print(
+                    show_mac(
+                        telnet_session=telnet,
+                        output=result,
+                        vendor='q-tech',
+                        interface_filter=interface_filter
+                    )
+                )
 
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")

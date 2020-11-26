@@ -13,7 +13,6 @@ def show_interfaces(telnet_session) -> str:
     output = ''
     while True:
         match = telnet_session.expect([r'# ', "More: <space>", pexpect.TIMEOUT])
-        print(telnet_session.before)
         page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
             "        ", '')
         output += page.strip()
@@ -77,11 +76,12 @@ def show_mac_mes(telnet_session, output: str, interface_filter: str) -> str:
         while True:
             match = telnet_session.expect([r'#$', "More: <space>", pexpect.TIMEOUT])
             page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-                "        ", '')
+                "        ", '').replace('[0m', '')
             mac_output += f"    {page.strip()}"
             if match == 0:
                 break
             elif match == 1:
+                telnet_session.expect('<return>')
                 telnet_session.send(" ")
             else:
                 print("    Ошибка: timeout")
@@ -89,7 +89,7 @@ def show_mac_mes(telnet_session, output: str, interface_filter: str) -> str:
         mac_output = sub('SVSL.+', '', mac_output)
         mac_output = sub(r'(?<=\d)(?=\S\S:\S\S:\S\S:\S\S:\S\S:\S\S)', r'     ', mac_output)
         mac_output = sub(r'Vlan\s+Mac\s+Address\s+Port\s+Type',
-                         '    Vlan          Mac_Address         Port       Type',
+                         'Vlan          Mac_Address         Port       Type',
                          mac_output)
         mac_output += '\n'
     return mac_output
