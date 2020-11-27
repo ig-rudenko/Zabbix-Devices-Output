@@ -15,8 +15,12 @@ root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
 
 def show_mac(telnet_session, output, vendor: str, interface_filter: str) -> str:
 
+    # EXTREME
+    if vendor == 'extreme':
+        return extreme.show_mac(telnet_session, output, interface_filter)
+
     # ZTE
-    if vendor.lower() == 'zte':
+    elif vendor.lower() == 'zte':
         return zte.show_mac(telnet_session, output, interface_filter)
 
     # ELTEX-ESR
@@ -247,7 +251,14 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                              )
                 )
                 if 'mac' in mode:
-                    print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉")
+                    print(
+                        show_mac(
+                            telnet_session=telnet,
+                            output=result,
+                            vendor='extreme',
+                            interface_filter=interface_filter
+                        )
+                    )
 
             # Q-TECH
             elif findall(r'QTECH', version):
@@ -259,15 +270,15 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                              tablefmt="fancy_grid"
                              )
                 )
-            if 'mac' in mode:
-                print(
-                    show_mac(
-                        telnet_session=telnet,
-                        output=result,
-                        vendor='q-tech',
-                        interface_filter=interface_filter
+                if 'mac' in mode:
+                    print(
+                        show_mac(
+                            telnet_session=telnet,
+                            output=result,
+                            vendor='q-tech',
+                            interface_filter=interface_filter
+                        )
                     )
-                )
 
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")
