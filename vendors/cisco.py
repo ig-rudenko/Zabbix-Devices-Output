@@ -79,3 +79,31 @@ def show_interfaces(telnet_session) -> list:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result
+
+
+def show_device_info(telnet_session):
+    version = ''
+    # VERSION
+    telnet_session.sendline('show version')
+    telnet_session.expect('show version')
+    while True:
+        m = telnet_session.expect([' --More-- ', '\S+#$'])
+        version += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+            "        ", '')
+        if m == 0:
+            telnet_session.sendline(' ')
+        else:
+            break
+    version = sub(r'\W+This product [\W\S]+cisco\.com\.', '', version)
+    version += '\n'
+
+    # SNMP
+    telnet_session.sendline('show snmp')
+    telnet_session.expect('show snmp')
+    telnet_session.expect('\S+#$')
+    version += '   ┌──────┐\n'
+    version += '   │ SNMP │\n'
+    version += '   └──────┘\n'
+    version += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "        ", '')
+    return version

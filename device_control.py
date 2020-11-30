@@ -52,7 +52,7 @@ def show_mac(telnet_session, output, vendor: str, interface_filter: str) -> str:
         return qtech.show_mac(telnet_session, output, interface_filter)
 
 
-def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = 'NOMON'):
+def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 'NOMON'):
 
     with pexpect.spawn(f"telnet {ip}") as telnet:
         try:
@@ -65,7 +65,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 telnet.sendline(user)
                 telnet.expect("[Pp]ass")
                 telnet.sendline(password)
-                match = telnet.expect([r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin(?!-)", "[Uu]ser\s", "[Nn]ame"])
+                match = telnet.expect([r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin(?!-)", "[Uu]ser\s", "[Nn]ame", 'Fail!'])
                 if match < 3:
                     break
             else:   # Если не удалось зайти под логинами и паролями из списка аутентификации
@@ -75,24 +75,26 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
             telnet.sendline('show version')
             version = ''
             while True:
-                m = telnet.expect([r']$', '-More-', r'>$', r'#'])
+                m = telnet.expect([r']$', '-More-', r'>$', r'#', pexpect.TIMEOUT])
                 version += str(telnet.before.decode('utf-8'))
                 if m == 1:
                     telnet.sendline(' ')
+                if m == 4:
+                    telnet.sendcontrol('C')
                 else:
                     break
             # ZTE
             if findall(r' ZTE Corporation:', version):
                 print("    Тип оборудования: ZTE")
-                result = zte.show_interfaces(telnet)
+                if 'показать_интерфейсы' in mode:
+                    result = zte.show_interfaces(telnet)
 
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
-
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -106,23 +108,23 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
             # Huawei
             elif findall(r'Unrecognized command', version):
                 print("    Тип оборудования: Huawei")
-                result, huawei_type = huawei.show_interfaces(telnet_session=telnet)
+                if 'показать_интерфейсы' in mode:
+                    result, huawei_type = huawei.show_interfaces(telnet_session=telnet)
 
-                if huawei_type == 'huawei-1':
-                    print(
-                        tabulate(result,
-                                 headers=['\nInterface', 'Port\nStatus', '\nDescription'],
-                                 tablefmt="fancy_grid"
-                                 )
-                    )
-                else:
-                    print(
-                        tabulate(result,
-                                 headers=['\nInterface', 'Port\nStatus', '\nDescription'],
-                                 tablefmt="fancy_grid"
-                                 )
-                    )
-
+                    if huawei_type == 'huawei-1':
+                        print(
+                            tabulate(result,
+                                     headers=['\nInterface', 'Port\nStatus', '\nDescription'],
+                                     tablefmt="fancy_grid"
+                                     )
+                        )
+                    else:
+                        print(
+                            tabulate(result,
+                                     headers=['\nInterface', 'Port\nStatus', '\nDescription'],
+                                     tablefmt="fancy_grid"
+                                     )
+                        )
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -132,24 +134,26 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                             interface_filter=interface_filter
                         )
                     )
+                if 'sys-info' in mode:
+                    print(huawei.show_device_info(telnet_session=telnet))
 
             # Cisco
             elif findall(r'Cisco IOS', version):
                 print("    Тип оборудования: Cisco")
-                if match == 1:  # если поймали `>`
-                    telnet.sendline('enable')
-                    telnet.expect('[Pp]ass')
-                    telnet.sendline('sevaccess')
-                telnet.expect('#')
-                result = cisco.show_interfaces(telnet_session=telnet)
+                if 'показать_интерфейсы' in mode:
+                    if match == 1:  # если поймали `>`
+                        telnet.sendline('enable')
+                        telnet.expect('[Pp]ass')
+                        telnet.sendline('sevaccess')
+                    telnet.expect('#')
+                    result = cisco.show_interfaces(telnet_session=telnet)
 
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
-
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -159,17 +163,20 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                             interface_filter=interface_filter
                         )
                     )
+                if 'sys-info' in mode:
+                    print(cisco.show_device_info(telnet_session=telnet))
 
             # D-Link
             elif findall(r'Next possible completions:', version):
                 print("    Тип оборудования: D-Link")
-                result = d_link.show_interfaces(telnet_session=telnet)
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nConnection', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
+                if 'показать_интерфейсы' in mode:
+                    result = d_link.show_interfaces(telnet_session=telnet)
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus', '\nConnection', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -179,30 +186,34 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                             interface_filter=interface_filter
                         )
                     )
+                if 'sys-info' in mode:
+                    print(d_link.show_device_info(telnet_session=telnet))
 
             # Alcatel, Linksys
             elif findall(r'SW version\s+', version):
                 print("    Тип оборудования: Alcatel или Linksys")
-                result = alcatel_linksys.show_interfaces(telnet_session=telnet)
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus',  '\nLink', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
+                if 'показать_интерфейсы' in mode:
+                    result = alcatel_linksys.show_interfaces(telnet_session=telnet)
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus',  '\nLink', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉")
 
             # Edge-Core
             elif findall(r'Hardware version', version):
                 print("    Тип оборудования: Edge-Core")
-                result = edge_core.show_interfaces(telnet_session=telnet)
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus',  '\nLink', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
+                if 'показать_интерфейсы' in mode:
+                    result = edge_core.show_interfaces(telnet_session=telnet)
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus',  '\nLink', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉")
 
@@ -213,22 +224,22 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
             # Eltex
             elif findall(r'Active-image: |Boot version:', version):
                 print("    Тип оборудования: Eltex")
-                output = eltex.show_interfaces(telnet_session=telnet)
-
-                if bool(findall(r'Active-image:', version)):
-                    eltex_type = 'eltex-mes'
-                    with open(f'{root_dir}/templates/int_des_eltex.template', 'r') as template_file:
-                        int_des_ = textfsm.TextFSM(template_file)
-                        result = int_des_.ParseText(output)  # Ищем интерфейсы
-                    print(
-                        tabulate(result,
-                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
-                                 tablefmt="fancy_grid"
-                                 )
-                    )
-                elif bool(findall(r'Boot version:', version)):
-                    eltex_type = 'eltex-esr'
-                    print(output)
+                if 'показать_интерфейсы' in mode:
+                    output = eltex.show_interfaces(telnet_session=telnet)
+                    if bool(findall(r'Active-image:', version)):
+                        eltex_type = 'eltex-mes'
+                        with open(f'{root_dir}/templates/int_des_eltex.template', 'r') as template_file:
+                            int_des_ = textfsm.TextFSM(template_file)
+                            result = int_des_.ParseText(output)  # Ищем интерфейсы
+                        print(
+                            tabulate(result,
+                                     headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                                     tablefmt="fancy_grid"
+                                     )
+                        )
+                    elif bool(findall(r'Boot version:', version)):
+                        eltex_type = 'eltex-esr'
+                        print(output)
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -238,18 +249,21 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                             interface_filter=interface_filter
                         )
                     )
+                if 'sys-info' in mode:
+                    print(eltex.show_device_info(telnet_session=telnet))
 
             # Extreme
             elif findall(r'ExtremeXOS', version):
                 print("    Тип оборудования: Extreme")
-                result = extreme.show_interfaces(telnet_session=telnet)
+                if 'показать_интерфейсы' in mode:
+                    result = extreme.show_interfaces(telnet_session=telnet)
 
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -263,13 +277,14 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
             # Q-TECH
             elif findall(r'QTECH', version):
                 print("    Тип оборудования: Q-Tech")
-                result = qtech.show_interfaces(telnet_session=telnet)
-                print(
-                    tabulate(result,
-                             headers=['\nInterface', 'Link\nStatus', '\nDescription'],
-                             tablefmt="fancy_grid"
-                             )
-                )
+                if 'показать_интерфейсы' in mode:
+                    result = qtech.show_interfaces(telnet_session=telnet)
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Link\nStatus', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
                 if 'mac' in mode:
                     print(
                         show_mac(
@@ -288,22 +303,21 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
 # mode = sys.argv[3]          # '--show-interfaces'
 
 
-mode = ''
 interface_filter = ''
 
-if len(sys.argv) < 3:
+if len(sys.argv) < 4:
     print('Не достаточно аргументов, операция прервана!')
     sys.exit()
 
 device_name = sys.argv[1]
 ip = sys.argv[2]
+mode = sys.argv[3]
 
 if len(sys.argv) >= 5:
-    mode = sys.argv[3]
     interface_filter = sys.argv[4]
 
-show_interfaces(dev=device_name,
-                ip=ip,
-                mode=mode,
-                interface_filter=interface_filter
-                )
+show_information(dev=device_name,
+                 ip=ip,
+                 mode=mode,
+                 interface_filter=interface_filter
+                 )

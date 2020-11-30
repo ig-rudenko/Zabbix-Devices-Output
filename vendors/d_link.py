@@ -57,3 +57,22 @@ def show_mac(telnet_session, output: list, interface_filter: str) -> str:
     if not intf_to_check:
         return f'Не найдены запрашиваемые интерфейсы на данном оборудовании!'
     return mac_output
+
+
+def show_device_info(telnet_session):
+    info = ''
+    telnet_session.sendline('show switch')
+    telnet_session.expect('Command: show switch')
+    telnet_session.expect('\S+#')
+    info += telnet_session.before.decode('utf-8')
+    info += ''
+
+    # CPU
+    telnet_session.sendline('show utilization cpu')
+    telnet_session.expect('Command: show utilization cpu\W+')
+    telnet_session.expect('\S+#')
+    info += '   ┌──────────────┐\n'
+    info += '   │ ЗАГРУЗКА CPU │\n'
+    info += '   └──────────────┘\n'
+    info += telnet_session.before.decode('utf-8')
+    return info

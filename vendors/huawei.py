@@ -1,5 +1,5 @@
 import pexpect
-from re import findall, sub
+from re import findall
 import os
 import sys
 import textfsm
@@ -103,7 +103,7 @@ def show_interfaces(telnet_session) -> tuple:
     template_type = ''
     while True:
         match = telnet_session.expect(['Too many parameters', ']', "  ---- More ----",
-                               "Unrecognized command", ">", pexpect.TIMEOUT])
+                                      "Unrecognized command", ">", pexpect.TIMEOUT])
         output += str(telnet_session.before.decode('utf-8')).replace(
             "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
         if match == 4:
@@ -131,3 +131,78 @@ def show_interfaces(telnet_session) -> tuple:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result, huawei_type
+
+
+def show_device_info(telnet_session):
+    version = '\n'
+    huawei_type = 'huawei-1'
+    v = telnet_session.expect(['<', 'Unrecognized command', '  ---- More ----'])
+    if v == 1:
+        huawei_type = 'huawei-2'
+        telnet_session.sendline('super')
+        telnet_session.expect(':')
+        telnet_session.sendline('sevaccess')
+        telnet_session.expect('>')
+
+    if huawei_type == 'huawei-2':
+        # VERSION
+        telnet_session.sendline('display version')
+        telnet_session.expect('display version')
+        telnet_session.expect('<')
+        version += str(telnet_session.before.decode('utf-8')).replace(
+                "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+        # CPU
+        telnet_session.sendline('display cpu')
+        telnet_session.expect('display cpu')
+        telnet_session.expect('<')
+        version += '   ┌──────────────┐\n'
+        version += '   │ ЗАГРУЗКА CPU │\n'
+        version += '   └──────────────┘\n'
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+        # MANUINFO
+        telnet_session.sendline('display device manuinfo')
+        telnet_session.expect('display device manuinfo')
+        telnet_session.expect('<')
+        version += '   ┌───────────────────────────┐\n'
+        version += '   │ MAC адрес, Серийный номер │\n'
+        version += '   └───────────────────────────┘\n'
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+        # DHCP SNOOPING
+        telnet_session.sendline('display dhcp-snooping')
+        telnet_session.expect('display dhcp-snooping')
+        telnet_session.expect('<')
+        version += '   ┌───────────────┐\n'
+        version += '   │ DHCP SNOOPING │\n'
+        version += '   └───────────────┘\n'
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+    if huawei_type == 'huawei-1':
+        # VERSION
+        telnet_session.sendline('display version')
+        telnet_session.expect('display version')
+        telnet_session.expect('<')
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+        # MAC
+        telnet_session.sendline('display bridge mac-address')
+        telnet_session.expect('display bridge mac-address')
+        telnet_session.expect('<')
+        version += '   ┌───────────┐\n'
+        version += '   │ MAC адрес │\n'
+        version += '   └───────────┘\n'
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+    return version

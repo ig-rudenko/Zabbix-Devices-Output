@@ -93,3 +93,33 @@ def show_mac_mes(telnet_session, output: str, interface_filter: str) -> str:
                          mac_output)
         mac_output += '\n'
     return mac_output
+
+
+def show_device_info(telnet_session):
+    info = ''
+    telnet_session.sendline('show system')
+    telnet_session.expect('show system')
+    telnet_session.expect('\W+\S+#')
+    info += telnet_session.before.decode('utf-8')
+    info += '\n\n'
+
+    # CPU
+    telnet_session.sendline('show cpu utilization')
+    telnet_session.expect('show cpu utilization')
+    telnet_session.expect('\S+#')
+    info += '   ┌──────────────┐\n'
+    info += '   │ ЗАГРУЗКА CPU │\n'
+    info += '   └──────────────┘\n'
+    info += telnet_session.before.decode('utf-8')
+    info += '\n\n'
+
+    # SNMP
+    telnet_session.sendline('show snmp')
+    telnet_session.expect('show snmp\W+')
+    telnet_session.expect('\W+\S+#$')
+    info += '   ┌──────┐\n'
+    info += '   │ SNMP │\n'
+    info += '   └──────┘\n'
+    info += telnet_session.before.decode('utf-8')
+    info += '\n\n'
+    return info
