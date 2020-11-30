@@ -17,12 +17,12 @@ def show_mac_huawei_1(telnet_session, output: list, interface_filter: str) -> st
         if (
                 (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
                 or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
-                    'SVSL' not in line[3].upper() and  # - интерфейсов, которые содержат "SVSL"
-                    'HUAWEI, QUIDWAY' not in line[3].upper() and  # - "заглушек" типа "HUAWEI, Quidway Series
-                    'POWER_MONITORING' not in line[3].upper())  # - POWER_MONITORING
+                    'SVSL' not in line[2].upper() and  # - интерфейсов, которые содержат "SVSL"
+                    'HUAWEI, QUIDWAY' not in line[2].upper() and  # - "заглушек" типа "HUAWEI, Quidway Series
+                    'POWER_MONITORING' not in line[2].upper())  # - POWER_MONITORING
                 and 'down' not in line[1].lower()  # И только интерфейсы со статусом admin up
         ):  # Если описание интерфейсов удовлетворяет фильтру
-            intf_to_check.append([line[0], line[3]])
+            intf_to_check.append([line[0], line[2]])
 
     if not intf_to_check:
         if not_uplinks:

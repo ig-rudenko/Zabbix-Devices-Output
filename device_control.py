@@ -111,7 +111,7 @@ def show_interfaces(dev: str, ip: str, mode: str = '', interface_filter: str = '
                 if huawei_type == 'huawei-1':
                     print(
                         tabulate(result,
-                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                                 headers=['\nInterface', 'Port\nStatus', '\nDescription'],
                                  tablefmt="fancy_grid"
                                  )
                     )
