@@ -63,3 +63,29 @@ def show_interfaces(telnet_session) -> list:
                        link_stat,
                        description])
     return result
+
+
+def show_device_info(telnet_session):
+    info = ''
+    # VERSION
+    telnet_session.sendline('show system')
+    telnet_session.expect('show system')
+    telnet_session.expect('\S+#')
+    info += str(telnet_session.before.decode('utf-8'))
+
+    # SNMP
+    telnet_session.sendline('show snmp')
+    telnet_session.expect('show snmp\W+')
+    info += '   ┌──────┐\n'
+    info += '   │ SNMP │\n'
+    info += '   └──────┘\n'
+    while True:
+        match = telnet_session.expect(['---More---', '#', pexpect.TIMEOUT])
+        info += str(telnet_session.before.decode('utf-8'))
+        if match == 0:
+            telnet_session.sendline(' ')
+            info += '\n'
+        else:
+            info += '\n'
+            break
+    return info

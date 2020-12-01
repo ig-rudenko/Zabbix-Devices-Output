@@ -216,6 +216,8 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     )
                 if 'mac' in mode:
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉")
+                if 'sys-info' in mode:
+                    print(edge_core.show_device_info(telnet_session=telnet))
 
             # Zyxel
             elif findall(r'ZyNOS', version):
