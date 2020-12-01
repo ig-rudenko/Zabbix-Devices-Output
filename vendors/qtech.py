@@ -76,3 +76,40 @@ def show_interfaces(telnet_session) -> list:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result
+
+
+def show_device_info(telnet_session):
+    info = ''
+    # VERSION
+    telnet_session.sendline('show version')
+    telnet_session.expect('show version')
+    telnet_session.expect('\S+#')
+    info += str(telnet_session.before.decode('utf-8'))
+
+    # TEMPERATURE
+    telnet_session.sendline('show temperature')
+    telnet_session.expect('show temperature')
+    telnet_session.expect('\S+#')
+    info += '   ┌─────────────┐\n'
+    info += '   │ Температура │\n'
+    info += '   └─────────────┘\n'
+    info += str(telnet_session.before.decode('utf-8'))
+
+    # FANS
+    telnet_session.sendline('show fan')
+    telnet_session.expect('show fan')
+    telnet_session.expect('\S+#')
+    info += '   ┌──────┐\n'
+    info += '   │ FANS │\n'
+    info += '   └──────┘\n'
+    info += str(telnet_session.before.decode('utf-8'))
+
+    # SNMP
+    telnet_session.sendline('show snmp status')
+    telnet_session.expect('show snmp status')
+    telnet_session.expect('\S+#')
+    info += '   ┌──────┐\n'
+    info += '   │ SNMP │\n'
+    info += '   └──────┘\n'
+    info += str(telnet_session.before.decode('utf-8'))
+    return info

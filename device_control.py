@@ -296,6 +296,8 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                             interface_filter=interface_filter
                         )
                     )
+                if 'sys-info' in mode:
+                    print(qtech.show_device_info(telnet_session=telnet))
 
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")
