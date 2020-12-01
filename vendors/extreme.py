@@ -104,3 +104,52 @@ def show_interfaces(telnet_session) -> list:
 
     result = [result_port_state[n] + result_des[n] for n in range(len(result_port_state))]
     return result
+
+
+def show_device_info(telnet_session):
+    info = '\n'
+
+    # VERSION
+    telnet_session.sendline('show version')
+    telnet_session.expect('show version\W+')
+    while True:
+        match = telnet_session.expect([r'\S+\s*#\s*', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
+        info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+            "\x1b[m\x1b[60;D\x1b[K", '').strip()
+        if match == 1:
+            telnet_session.send(" ")
+            info += '\n'
+        else:
+            info += '\n'
+            break
+
+    # FANS
+    telnet_session.sendline('show fans detail')
+    telnet_session.expect('show fans detail\W+')
+    telnet_session.expect('\S+\s*#\s*')
+    info += '   ┌──────┐\n'
+    info += '   │ FANS │\n'
+    info += '   └──────┘\n'
+    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "\x1b[m\x1b[60;D\x1b[K", '')
+
+    # TEMPERATURE
+    telnet_session.sendline('show temperature')
+    telnet_session.expect('show temperature\W+')
+    telnet_session.expect('\S+\s*#\s*')
+    info += '   ┌─────────────┐\n'
+    info += '   │ Температура │\n'
+    info += '   └─────────────┘\n'
+    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "\x1b[m\x1b[60;D\x1b[K", '')
+
+    # POWER
+    telnet_session.sendline('show power')
+    telnet_session.expect('show power\W+')
+    telnet_session.expect('\S+\s*#\s*')
+    info += '   ┌─────────┐\n'
+    info += '   │ Питание │\n'
+    info += '   └─────────┘\n'
+    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "\x1b[m\x1b[60;D\x1b[K", '')
+    return info

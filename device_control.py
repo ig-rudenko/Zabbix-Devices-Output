@@ -273,6 +273,8 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                             interface_filter=interface_filter
                         )
                     )
+                if 'sys-info' in mode:
+                    print(extreme.show_device_info(telnet_session=telnet))
 
             # Q-TECH
             elif findall(r'QTECH', version):
