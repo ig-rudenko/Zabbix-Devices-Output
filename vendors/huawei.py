@@ -136,23 +136,26 @@ def show_interfaces(telnet_session) -> tuple:
 def show_device_info(telnet_session):
     version = '\n'
     huawei_type = 'huawei-1'
+    telnet_session.sendline('display cpu')
     v = telnet_session.expect(['<', 'Unrecognized command', '  ---- More ----'])
     if v == 1:
         huawei_type = 'huawei-2'
         telnet_session.sendline('super')
-        telnet_session.expect(':')
+        telnet_session.expect('[Pp]assword:')
         telnet_session.sendline('sevaccess')
         telnet_session.expect('>')
+    elif v == 2:
+        telnet_session.sendline('q')
+
+    # VERSION
+    telnet_session.sendline('display version')
+    telnet_session.expect('display version')
+    telnet_session.expect('\S+>')
+    version += str(telnet_session.before.decode('utf-8')).replace(
+        "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+    version += '\n\n\n'
 
     if huawei_type == 'huawei-2':
-        # VERSION
-        telnet_session.sendline('display version')
-        telnet_session.expect('display version')
-        telnet_session.expect('<')
-        version += str(telnet_session.before.decode('utf-8')).replace(
-                "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
-        version += '\n\n\n'
-
         # CPU
         telnet_session.sendline('display cpu')
         telnet_session.expect('display cpu')
@@ -178,23 +181,23 @@ def show_device_info(telnet_session):
         # DHCP SNOOPING
         telnet_session.sendline('display dhcp-snooping')
         telnet_session.expect('display dhcp-snooping')
-        telnet_session.expect('<')
         version += '   ┌───────────────┐\n'
         version += '   │ DHCP SNOOPING │\n'
         version += '   └───────────────┘\n'
-        version += str(telnet_session.before.decode('utf-8')).replace(
-            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        dhcp_output = ''
+        while True:
+            match = telnet_session.expect(['<\S+>', "  ---- More ----", pexpect.TIMEOUT])
+            dhcp_output += str(telnet_session.before.decode('utf-8')).replace(
+                "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+            if match == 1:
+                telnet_session.sendline(' ')
+                dhcp_output += '\n '
+            else:
+                break
+        version += dhcp_output
         version += '\n\n\n'
 
     if huawei_type == 'huawei-1':
-        # VERSION
-        telnet_session.sendline('display version')
-        telnet_session.expect('display version')
-        telnet_session.expect('<')
-        version += str(telnet_session.before.decode('utf-8')).replace(
-            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
-        version += '\n\n\n'
-
         # MAC
         telnet_session.sendline('display bridge mac-address')
         telnet_session.expect('display bridge mac-address')
