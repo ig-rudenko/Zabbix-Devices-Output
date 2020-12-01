@@ -60,9 +60,10 @@ def show_mac(telnet_session, output: list, interface_filter: str) -> str:
 
 def show_interfaces(telnet_session) -> list:
     telnet_session.sendline("show int des")
+    telnet_session.expect("show int des")
     output = ''
     while True:
-        match = telnet_session.expect([r'#$', "--More--", pexpect.TIMEOUT])
+        match = telnet_session.expect([r'\S+#$', "--More--", pexpect.TIMEOUT])
         page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
             "        ", '')
         output += page.strip()
@@ -96,6 +97,34 @@ def show_device_info(telnet_session):
             break
     version = sub(r'\W+This product [\W\S]+cisco\.com\.', '', version)
     version += '\n'
+
+    # ENVIRONMENT
+    telnet_session.sendline('show environment')
+    telnet_session.expect('show environment')
+    version += '   ┌──────────────────────────────────┐\n'
+    version += '   │ Температура, Питание, Охлаждение │\n'
+    version += '   └──────────────────────────────────┘\n'
+    while True:
+        m = telnet_session.expect([' --More-- ', '\S+#$'])
+        version += str(telnet_session.before.decode('utf-8'))
+        if m == 0:
+            telnet_session.sendline(' ')
+        else:
+            break
+
+    # INVENTORY
+    telnet_session.sendline('show inventory oid')
+    telnet_session.expect('show inventory oid')
+    version += '   ┌────────────────┐\n'
+    version += '   │ Инвентаризация │\n'
+    version += '   └────────────────┘\n'
+    while True:
+        m = telnet_session.expect([' --More-- ', '\S+#$'])
+        version += str(telnet_session.before.decode('utf-8'))
+        if m == 0:
+            telnet_session.sendline(' ')
+        else:
+            break
 
     # SNMP
     telnet_session.sendline('show snmp')
