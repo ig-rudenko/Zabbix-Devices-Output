@@ -61,6 +61,12 @@ def show_mac(telnet_session, output: list, interface_filter: str) -> str:
 
 def show_device_info(telnet_session):
     info = ''
+    telnet_session.sendline('enable admin')
+    if telnet_session.expect(["#", "[Pp]ass"]):
+        telnet_session.sendline('sevaccess')
+        telnet_session.expect('#')
+    telnet_session.sendline('disable clipaging')
+    telnet_session.expect('#')
     telnet_session.sendline('show switch')
     telnet_session.expect('Command: show switch')
     telnet_session.expect('\S+#')
