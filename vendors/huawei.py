@@ -96,31 +96,45 @@ def show_mac_huawei_2(telnet_session, output: list, interface_filter: str) -> st
     return mac_output
 
 
-def show_interfaces(telnet_session) -> tuple:
-    telnet_session.sendline("display interface description")
-    telnet_session.expect('display interface description')
-    output = ''
-    huawei_type = 'huawei-1'  # with '*down'
+def show_interfaces(telnet_session, huawei_type: str = 'huawei-1', privileged: bool = False) -> tuple:
+    """
+        Обнаруживаем интерфейсы на коммутаторе типа Huawei
+    :param telnet_session:  залогиненная сессия
+    :param huawei_type:     тип huawei: huawei-1, huawei-2 (по умолчанию huawei-1)
+    :param privileged:      привелигированный ']' или нет '>' (по умолчанию нет)
+    :return:                Кортеж (список интерфейсов, тип huawei)
+    """
     template_type = ''
+    output = ''
+
+    if '1' in huawei_type:  # with '*down'
+        telnet_session.sendline("display interface description")
+        telnet_session.expect('display interface description')
+
+    elif '2' in huawei_type:
+        telnet_session.sendline('dis brief int')
+        template_type = '2'
+
     while True:
-        match = telnet_session.expect(['Too many parameters', ']', "  ---- More ----",
+        match = telnet_session.expect(['Too many parameters|Wrong parameter', ']', "  ---- More ----",
                                       "Unrecognized command", ">", pexpect.TIMEOUT])
         output += str(telnet_session.before.decode('utf-8')).replace(
             "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
-        if match == 4:
-            break
-        elif match == 1:
+        if match == 4 or match == 1:
             break
         elif match == 2:
             telnet_session.send(" ")
             output += '\n\n'
         elif match == 0 or match == 3:
-            telnet_session.expect('>')
-            telnet_session.sendline('super')
-            telnet_session.expect(':')
-            telnet_session.sendline('sevaccess')
-            telnet_session.expect('>')
+            # Если непривилегированный пользователь
+            if not privileged:
+                telnet_session.expect('>')
+                telnet_session.sendline('super')
+                if not telnet_session.expect(['[Pp]ass', '<\S+>']):
+                    telnet_session.sendline('sevaccess')
+                    telnet_session.expect('>')
             telnet_session.sendline('dis brief int')
+            telnet_session.expect('dis brief int')
             output = ''
             huawei_type = 'huawei-2'
             template_type = '2'
@@ -214,17 +228,18 @@ def show_device_info(telnet_session):
 
 def show_cable_diagnostic(telnet_session):
     cable_diagnostic = ''
-    huawei_type = 'huawei-1'
-    telnet_session.sendline('display cpu')
-    v = telnet_session.expect(['<', 'Unrecognized command', '  ---- More ----'])
+    telnet_session.sendline('system-view')
+    v = telnet_session.expect(['\S+]$', 'Unrecognized command'])
     if v == 1:
         huawei_type = 'huawei-2'
         telnet_session.sendline('super')
         telnet_session.expect('[Pp]assword:')
         telnet_session.sendline('sevaccess')
         telnet_session.expect('>')
-    elif v == 2:
-        telnet_session.sendline('q')
+        telnet_session.sendline('system-view')
+        telnet_session.expect('\S+]$')
+    else:
+        huawei_type = 'huawei-1'
 
     if huawei_type == 'huawei-1':
         # CABLE DIAGNOSTIC
@@ -245,28 +260,64 @@ def show_cable_diagnostic(telnet_session):
                       Short: указывает на короткое замыкание пары цепей.
                       Crosstalk: указывает на то, что пары цепей мешают друг другу.
                       Unknown: указывает, что пара цепей имеет неизвестную неисправность.
+
+
         '''
         interfaces_list, _ = show_interfaces(telnet_session=telnet_session)
         telnet_session.sendline('system-view')
         telnet_session.expect('\S+]$')
         for intf in interfaces_list:
             if 'NULL' not in intf[0] and 'Vlan' not in intf[0]:
-                separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}')
-                cable_diagnostic += f'    Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}\n' \
-                                    f'    {separator_str}\n'
-                telnet_session.sendline(f'interface {interface_normal_view(intf[0])}')
-                telnet_session.expect(f'\S+]$')
-                telnet_session.sendline('virtual-cable-test')
-                if telnet_session.expect(['continue \[Y/N\]', 'Error:']):
-                    cable_diagnostic += 'Данный интерфейс не поддерживается\n\n'
+                try:
+                    separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}')
+                    cable_diagnostic += f'    Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}\n' \
+                                        f'    {separator_str}\n'
+                    telnet_session.sendline(f'interface {interface_normal_view(intf[0])}')
+                    telnet_session.expect(f'\S+]$')
+                    telnet_session.sendline('virtual-cable-test')
+                    if telnet_session.expect(['continue \[Y/N\]', 'Error:']):
+                        cable_diagnostic += 'Данный интерфейс не поддерживается\n\n'
+                        telnet_session.sendline('quit')
+                        telnet_session.expect('\S+]$')
+                        continue
+                    telnet_session.sendline('Y')
+                    telnet_session.expect('\?Y\W*')
+                    telnet_session.expect('\[\S+\]$')
+                    cable_diagnostic += str(telnet_session.before.decode('utf-8'))
+                    cable_diagnostic += '\n'
                     telnet_session.sendline('quit')
-                    telnet_session.expect('\S+]$')
-                    continue
-                telnet_session.sendline('Y')
-                telnet_session.expect('\?Y\W*')
-                telnet_session.expect('\[\S+\]$')
-                cable_diagnostic += str(telnet_session.before.decode('utf-8'))
-                cable_diagnostic += '\n'
-                telnet_session.sendline('quit')
-                telnet_session.expect(f'\S+]$')
+                    telnet_session.expect(f'\S+]$')
+                except pexpect.TIMEOUT:
+                    break
+
+    if huawei_type == 'huawei-2':
+        # CABLE DIAGNOSTIC
+        cable_diagnostic = '''
+                ┌─────────────────────┐
+                │ Диагностика кабелей │
+                └─────────────────────┘
+
+
+'''
+        interfaces_list, _ = show_interfaces(telnet_session=telnet_session,
+                                             huawei_type='huawei-2',
+                                             privileged=True)
+        for intf in interfaces_list:
+            if 'NULL' not in intf[0] and 'Vlan' not in intf[0] and not 'SVSL' in intf[2]:
+                try:
+                    separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}')
+                    cable_diagnostic += f'    Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}\n' \
+                                        f'    {separator_str}\n'
+                    telnet_session.sendline(f'interface {interface_normal_view(intf[0])}')
+                    telnet_session.expect(f'\S+]$')
+                    telnet_session.sendline('virtual-cable-test')
+                    telnet_session.expect('virtual-cable-test\W+')
+                    telnet_session.expect('\[\S+\d\]$')
+                    cable_diagnostic += str(telnet_session.before.decode('utf-8'))
+                    cable_diagnostic += '\n'
+                    telnet_session.sendline('quit')
+                    telnet_session.expect(f'\S+]$')
+
+                except pexpect.TIMEOUT:
+                    break
     return cable_diagnostic
