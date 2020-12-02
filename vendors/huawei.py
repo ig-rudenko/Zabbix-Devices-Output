@@ -97,9 +97,10 @@ def show_mac_huawei_2(telnet_session, output: list, interface_filter: str) -> st
 
 
 def show_interfaces(telnet_session) -> tuple:
-    telnet_session.sendline("dis int des")
+    telnet_session.sendline("display interface description")
+    telnet_session.expect('display interface description')
     output = ''
-    huawei_type = 'huawei-1'
+    huawei_type = 'huawei-1'  # with '*down'
     template_type = ''
     while True:
         match = telnet_session.expect(['Too many parameters', ']', "  ---- More ----",
@@ -209,3 +210,63 @@ def show_device_info(telnet_session):
             "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
         version += '\n\n\n'
     return version
+
+
+def show_cable_diagnostic(telnet_session):
+    cable_diagnostic = ''
+    huawei_type = 'huawei-1'
+    telnet_session.sendline('display cpu')
+    v = telnet_session.expect(['<', 'Unrecognized command', '  ---- More ----'])
+    if v == 1:
+        huawei_type = 'huawei-2'
+        telnet_session.sendline('super')
+        telnet_session.expect('[Pp]assword:')
+        telnet_session.sendline('sevaccess')
+        telnet_session.expect('>')
+    elif v == 2:
+        telnet_session.sendline('q')
+
+    if huawei_type == 'huawei-1':
+        # CABLE DIAGNOSTIC
+        cable_diagnostic = '''
+            ┌─────────────────────┐
+            │ Диагностика кабелей │
+            └─────────────────────┘
+
+    Pair A/B/C/D   Четыре пары в сетевом кабеле
+
+    Pair length    Длина сетевого кабеля:
+                    ─ расстояние между интерфейсом и точкой разлома в случае возникновения неисправности;
+                    ─ фактическая длина кабеля, когда он работает правильно.
+
+    Pair state     Состояние сетевого кабеля:
+                      Ok: указывает, что пара цепей нормально завершена.
+                      Open: указывает, что пара цепей не завершена.
+                      Short: указывает на короткое замыкание пары цепей.
+                      Crosstalk: указывает на то, что пары цепей мешают друг другу.
+                      Unknown: указывает, что пара цепей имеет неизвестную неисправность.
+        '''
+        interfaces_list, _ = show_interfaces(telnet_session=telnet_session)
+        telnet_session.sendline('system-view')
+        telnet_session.expect('\S+]$')
+        for intf in interfaces_list:
+            if 'NULL' not in intf[0] and 'Vlan' not in intf[0]:
+                separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}')
+                cable_diagnostic += f'    Интерфейс: {intf[0]} ({intf[2]}) port status: {intf[1]}\n' \
+                                    f'    {separator_str}\n'
+                telnet_session.sendline(f'interface {interface_normal_view(intf[0])}')
+                telnet_session.expect(f'\S+]$')
+                telnet_session.sendline('virtual-cable-test')
+                if telnet_session.expect(['continue \[Y/N\]', 'Error:']):
+                    cable_diagnostic += 'Данный интерфейс не поддерживается\n\n'
+                    telnet_session.sendline('quit')
+                    telnet_session.expect('\S+]$')
+                    continue
+                telnet_session.sendline('Y')
+                telnet_session.expect('\?Y\W*')
+                telnet_session.expect('\[\S+\]$')
+                cable_diagnostic += str(telnet_session.before.decode('utf-8'))
+                cable_diagnostic += '\n'
+                telnet_session.sendline('quit')
+                telnet_session.expect(f'\S+]$')
+    return cable_diagnostic

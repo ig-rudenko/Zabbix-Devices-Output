@@ -67,6 +67,8 @@ def show_device_info(telnet_session):
         telnet_session.expect('#')
     telnet_session.sendline('disable clipaging')
     telnet_session.expect('#')
+
+    # VERSION
     telnet_session.sendline('show switch')
     telnet_session.expect('Command: show switch')
     telnet_session.expect('\S+#')
@@ -80,5 +82,33 @@ def show_device_info(telnet_session):
     info += '   ┌──────────────┐\n'
     info += '   │ ЗАГРУЗКА CPU │\n'
     info += '   └──────────────┘\n'
+    info += telnet_session.before.decode('utf-8')
+    return info
+
+
+def show_cable_diagnostic(telnet_session):
+    info = ''
+    telnet_session.sendline('enable admin')
+    if telnet_session.expect(["#", "[Pp]ass"]):
+        telnet_session.sendline('sevaccess')
+        telnet_session.expect('#')
+    telnet_session.sendline('disable clipaging')
+    telnet_session.expect('#')
+
+    # CABLE_DIAGNOSTIC
+    telnet_session.sendline('cable_diag ports all')
+    telnet_session.expect('Perform Cable Diagnostics ...\W+')
+    telnet_session.expect('\S+#')
+    info += '''
+            ┌─────────────────────┐
+            │ Диагностика кабелей │
+            └─────────────────────┘
+            
+    Pair Open — конец линии (либо обрыв) на растоянии ХХ метров
+    Link Up, длинна ХХ метров
+    Link Down, OK — нельзя измерить длинну кабеля (но нагрузка есть)
+    Link Down, No Cable — нет кабеля
+    
+    '''
     info += telnet_session.before.decode('utf-8')
     return info

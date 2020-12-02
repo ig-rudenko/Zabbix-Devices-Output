@@ -136,6 +136,8 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     )
                 if 'sys-info' in mode:
                     print(huawei.show_device_info(telnet_session=telnet))
+                if 'cable-diagnostic' in mode:
+                    print(huawei.show_cable_diagnostic(telnet_session=telnet))
 
             # Cisco
             elif findall(r'Cisco IOS', version):
@@ -188,6 +190,8 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     )
                 if 'sys-info' in mode:
                     print(d_link.show_device_info(telnet_session=telnet))
+                if 'cable-diagnostic' in mode:
+                    print(d_link.show_cable_diagnostic(telnet_session=telnet))
 
             # Alcatel, Linksys
             elif findall(r'SW version\s+', version):
