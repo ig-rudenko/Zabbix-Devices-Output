@@ -106,7 +106,11 @@ def show_device_info(telnet_session):
     version += '   └──────────────────────────────────┘\n'
     while True:
         m = telnet_session.expect([' --More-- ', '\S+#$'])
-        version += str(telnet_session.before.decode('utf-8'))
+        env_str = str(telnet_session.before.decode('utf-8'))
+        if 'Invalid input' in env_str:
+            version += 'Нет данных\n'
+        else:
+            version += env_str
         if m == 0:
             telnet_session.sendline(' ')
         else:
@@ -119,10 +123,13 @@ def show_device_info(telnet_session):
     version += '   │ Инвентаризация │\n'
     version += '   └────────────────┘\n'
     while True:
-        m = telnet_session.expect([' --More-- ', '\S+#$'])
+        m = telnet_session.expect([' --More-- ', '\S+#$', 'Invalid input|% No entity'])
         version += str(telnet_session.before.decode('utf-8'))
         if m == 0:
             telnet_session.sendline(' ')
+        elif m == 2:    # Если нет ключа "oid"
+            telnet_session.sendline('show inventory')
+            telnet_session.expect('show inventory')
         else:
             break
 
