@@ -15,7 +15,7 @@ def interface_normal_view(interface) -> str:
         return f"Ethernet {interface_number[0][0]}"
     elif bool(findall('^[Ff]a', interface)):
         return f"FastEthernet {interface_number[0][0]}"
-    elif bool(findall('^[Gg]i', interface)):
+    elif bool(findall('^[Gg][ieE]', interface)):
         return f"GigabitEthernet {interface_number[0][0]}"
     elif bool(findall('^\d+', interface)):
         return findall('^\d+', interface)[0]
