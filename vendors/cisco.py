@@ -88,12 +88,17 @@ def show_device_info(telnet_session):
     telnet_session.sendline('show version')
     telnet_session.expect('show version')
     while True:
-        m = telnet_session.expect([' --More-- ', '\S+#$'])
-        version += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        match = telnet_session.expect([r'\S+#$', "--More--", pexpect.TIMEOUT])
+        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
             "        ", '')
-        if m == 0:
-            telnet_session.sendline(' ')
+        version += page.strip()
+        if match == 0:
+            break
+        elif match == 1:
+            telnet_session.send(" ")
+            version += '\n'
         else:
+            print("    Ошибка: timeout")
             break
     version = sub(r'\W+This product [\W\S]+cisco\.com\.', '', version)
     version += '\n'
