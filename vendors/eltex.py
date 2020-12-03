@@ -97,6 +97,15 @@ def show_mac_mes(telnet_session, output: str, interface_filter: str) -> str:
 
 def show_device_info(telnet_session):
     info = ''
+
+    # SYSTEM ID
+    telnet_session.sendline('show system id')
+    telnet_session.expect('show system id\W+')
+    telnet_session.expect('\W+\S+#')
+    info += telnet_session.before.decode('utf-8')
+    info += '\n\n'
+
+    # VERSION
     telnet_session.sendline('show system')
     telnet_session.expect('show system')
     telnet_session.expect('\W+\S+#')
