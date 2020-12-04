@@ -147,4 +147,29 @@ def show_device_info(telnet_session):
     version += '   └──────┘\n'
     version += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
         "        ", '')
+
+    # IDPROMs
+    telnet_session.sendline('show idprom all')
+    telnet_session.expect('show idprom all')
+    tech_info = '\n' \
+                ' ┌                                    ┐\n' \
+                ' │ Расширенная техническая информация │\n' \
+                ' └                                    ┘\n' \
+                '                   ▼\n\n'
+    while True:
+        match = telnet_session.expect([r'\S+#$', "--More--", '% Invalid input', pexpect.TIMEOUT])
+        if match == 2:
+            tech_info = ''
+            break
+        tech_info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+            "        ", '').strip()
+        if match == 0:
+            break
+        elif match == 1:
+            telnet_session.send(" ")
+            tech_info += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+    version += tech_info
     return version
