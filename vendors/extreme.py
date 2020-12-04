@@ -1,9 +1,8 @@
 import pexpect
-from re import findall, sub
+from re import findall
 import os
 import sys
 import textfsm
-from func.intf_view import interface_normal_view
 
 root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
 
@@ -110,8 +109,8 @@ def show_device_info(telnet_session):
     info = '\n'
 
     # VERSION
-    telnet_session.sendline('show version')
-    telnet_session.expect('show version\W+')
+    telnet_session.sendline('show switch detail')
+    telnet_session.expect('show switch detail\W+')
     while True:
         match = telnet_session.expect([r'\S+\s*#\s*', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
         info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
@@ -122,14 +121,19 @@ def show_device_info(telnet_session):
         else:
             info += '\n'
             break
+    telnet_session.sendline('show version detail')
+    telnet_session.expect('show version detail\W+')
+    telnet_session.expect('\S+\s*#\s*')
+    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "\x1b[m\x1b[60;D\x1b[K", '')
 
     # FANS
     telnet_session.sendline('show fans detail')
     telnet_session.expect('show fans detail\W+')
     telnet_session.expect('\S+\s*#\s*')
-    info += '   ┌──────┐\n'
-    info += '   │ FANS │\n'
-    info += '   └──────┘\n'
+    info += '           ┌────────────┐\n' \
+            '           │ Охлаждение │\n' \
+            '           └────────────┘\n'
     info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
         "\x1b[m\x1b[60;D\x1b[K", '')
 
@@ -137,9 +141,9 @@ def show_device_info(telnet_session):
     telnet_session.sendline('show temperature')
     telnet_session.expect('show temperature\W+')
     telnet_session.expect('\S+\s*#\s*')
-    info += '   ┌─────────────┐\n'
-    info += '   │ Температура │\n'
-    info += '   └─────────────┘\n'
+    info += '           ┌─────────────┐\n' \
+            '           │ Температура │\n' \
+            '           └─────────────┘\n'
     info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
         "\x1b[m\x1b[60;D\x1b[K", '')
 
@@ -147,9 +151,35 @@ def show_device_info(telnet_session):
     telnet_session.sendline('show power')
     telnet_session.expect('show power\W+')
     telnet_session.expect('\S+\s*#\s*')
-    info += '   ┌─────────┐\n'
-    info += '   │ Питание │\n'
-    info += '   └─────────┘\n'
+    info += '           ┌─────────┐\n' \
+            '           │ Питание │\n' \
+            '           └─────────┘\n'
+    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "\x1b[m\x1b[60;D\x1b[K", '')
+
+    info += ' ┌                                    ┐\n' \
+            ' │ Расширенная техническая информация │\n' \
+            ' └                                    ┘\n' \
+            '                   ▼\n\n' \
+            '           ┌───────────────┐\n' \
+            '           │ Platform Info │\n' \
+            '           └───────────────┘\n'
+
+    # PLATFORM INFORMATION
+    telnet_session.sendline('debug hal show platform platformInfo')
+    telnet_session.expect('debug hal show platform platformInfo')
+    telnet_session.expect('\S+\s*#\s*$')
+
+    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+        "\x1b[m\x1b[60;D\x1b[K", '')
+
+    # SLOTS
+    telnet_session.sendline('debug hal show platform deviceInfo')
+    telnet_session.expect('debug hal show platform deviceInfo')
+    telnet_session.expect('\S+\s*#\s*$')
+    info += '           ┌───────┐\n' \
+            '           │ Слоты │\n' \
+            '           └───────┘\n'
     info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
         "\x1b[m\x1b[60;D\x1b[K", '')
     return info
