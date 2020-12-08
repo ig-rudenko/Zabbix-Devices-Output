@@ -223,6 +223,47 @@ def show_device_info(telnet_session):
         version += str(telnet_session.before.decode('utf-8')).replace(
             "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
         version += '\n\n\n'
+
+        # TEMPERATURE
+        telnet_session.sendline('display environment')
+        telnet_session.expect('display environment')
+        telnet_session.expect('<')
+        version += '   ┌─────────────┐\n'
+        version += '   │ Температура │\n'
+        version += '   └─────────────┘\n'
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+        # FANS
+        telnet_session.sendline('display fan verbose')
+        telnet_session.expect('display fan verbose')
+        telnet_session.expect('<')
+        version += '   ┌────────────┐\n'
+        version += '   │ Охлаждение │\n'
+        version += '   └────────────┘\n'
+        version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+        version += '\n\n\n'
+
+        # E-LABEL
+        telnet_session.sendline('display elabel')
+        telnet_session.expect('display elabel')
+        version += '\n' \
+                   ' ┌                                    ┐\n' \
+                   ' │ Расширенная техническая информация │\n' \
+                   ' └                                    ┘\n' \
+                   '                   ▼\n\n'
+        while True:
+            m = telnet_session.expect(['  ---- More ----', '<\S+>', pexpect.TIMEOUT])
+            version += str(telnet_session.before.decode('utf-8')).replace(
+            "\x1b[42D                                          \x1b[42D", '').replace("[42D", '').strip()
+            if m == 0:
+                telnet_session.sendline(' ')
+                version += '\n'
+            else:
+                break
+        version += '\n\n\n'
     return version
 
 
