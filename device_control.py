@@ -13,59 +13,24 @@ from auth_list import auth_list
 root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
 
 
-def show_mac(telnet_session, output, vendor: str, interface_filter: str) -> str:
-
-    # EXTREME
-    if vendor == 'extreme':
-        return extreme.show_mac(telnet_session, output, interface_filter)
-
-    # ZTE
-    elif vendor.lower() == 'zte':
-        return zte.show_mac(telnet_session, output, interface_filter)
-
-    # ELTEX-ESR
-    elif vendor.lower() == 'eltex-esr':
-        return eltex.show_mac_esr_12vf(telnet_session)
-
-    # ELTEX-MES
-    elif vendor.lower() == 'eltex-mes':
-        return eltex.show_mac_mes(telnet_session, output, interface_filter)
-
-    # D-LINK
-    elif vendor == 'd-link':
-        return d_link.show_mac(telnet_session, output, interface_filter)
-
-    # CISCO
-    elif vendor == 'cisco':
-        return cisco.show_mac(telnet_session, output, interface_filter)
-
-    # HUAWEI_FIRST_TYPE
-    elif vendor == 'huawei-1':
-        return huawei.show_mac_huawei_1(telnet_session, output, interface_filter)
-
-    # HUAWEI_SECOND_TYPE
-    elif vendor == 'huawei-2':
-        return huawei.show_mac_huawei_2(telnet_session, output, interface_filter)
-
-    # Q-TECH
-    elif vendor == 'q-tech':
-        return qtech.show_mac(telnet_session, output, interface_filter)
-
-
 def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 'NOMON'):
 
     with pexpect.spawn(f"telnet {ip}") as telnet:
         try:
             for user, password in auth_list:
-                login_stat = telnet.expect(["[Ll]ogin", "[Uu]ser", "[Nn]ame", 'Unable to connect', 'Connection closed'],
-                                           timeout=20)
+                login_stat = telnet.expect(
+                    ["[Ll]ogin", "[Uu]ser", "[Nn]ame", 'Unable to connect', 'Connection closed'],
+                    timeout=20
+                )
                 if login_stat >= 3:
                     print("    Telnet недоступен!")
                     return False
                 telnet.sendline(user)
                 telnet.expect("[Pp]ass")
                 telnet.sendline(password)
-                match = telnet.expect([r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin(?!-)", "[Uu]ser\s", "[Nn]ame", 'Fail!'])
+                match = telnet.expect(
+                    [r']$', r'>$', '#', 'Failed to send authen-req', "[Ll]ogin(?!-)", "[Uu]ser\s", "[Nn]ame", 'Fail!']
+                )
                 if match < 3:
                     break
             else:   # Если не удалось зайти под логинами и паролями из списка аутентификации
@@ -86,6 +51,7 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
             # ZTE
             if findall(r' ZTE Corporation:', version):
                 print("    Тип оборудования: ZTE")
+
                 if 'показать_интерфейсы' in mode:
                     result = zte.show_interfaces(telnet)
 
@@ -95,15 +61,12 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=result,
-                            vendor='zte',
-                            interface_filter=interface_filter
-                        )
-                    )
+                    print(zte.show_mac(telnet, result, interface_filter))
+
+                if 'vlan' in mode:
+                    print('В разработке...')
 
             # Huawei
             elif findall(r'Unrecognized command', version):
@@ -125,23 +88,25 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                      tablefmt="fancy_grid"
                                      )
                         )
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=result,
-                            vendor=huawei_type,
-                            interface_filter=interface_filter
-                        )
-                    )
+                    if huawei_type == 'huawei-1':
+                        print(huawei.show_mac_huawei_1(telnet, result, interface_filter))
+                    else:
+                        print(huawei.show_mac_huawei_2(telnet, result, interface_filter))
+
                 if 'sys-info' in mode:
                     print(huawei.show_device_info(telnet_session=telnet))
+
                 if 'cable-diagnostic' in mode:
                     print(huawei.show_cable_diagnostic(telnet_session=telnet))
 
+                if 'vlan' in mode:
+                    print('В разработке...')
+
             # Cisco
             elif findall(r'Cisco IOS', version):
-                print("    Тип оборудования: Cisco")
+                print("    Тип оборудования: Cisco\n")
                 if 'показать_интерфейсы' in mode:
                     if match == 1:  # если поймали `>`
                         telnet.sendline('enable')
@@ -156,21 +121,19 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=result,
-                            vendor='cisco',
-                            interface_filter=interface_filter
-                        )
-                    )
+                    print(cisco.show_mac(telnet, result, interface_filter))
+
                 if 'sys-info' in mode:
                     print(cisco.show_device_info(telnet_session=telnet))
 
+                if 'vlan' in mode:
+                    print('В разработке...')
+
             # D-Link
             elif findall(r'Next possible completions:', version):
-                print("    Тип оборудования: D-Link")
+                print("    Тип оборудования: D-Link\n")
                 if 'показать_интерфейсы' in mode:
                     result = d_link.show_interfaces(telnet_session=telnet)
                     print(
@@ -179,19 +142,29 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=result,
-                            vendor='d-link',
-                            interface_filter=interface_filter
-                        )
-                    )
+                    print(d_link.show_mac(telnet, result, interface_filter))
+
                 if 'sys-info' in mode:
                     print(d_link.show_device_info(telnet_session=telnet))
+
                 if 'cable-diagnostic' in mode:
                     print(d_link.show_cable_diagnostic(telnet_session=telnet))
+
+                if 'vlan' in mode:
+                    vlan_info, interfaces_and_vlan = d_link.show_vlans(
+                        telnet_session=telnet,
+                        interfaces=d_link.show_interfaces(telnet_session=telnet)
+                    )
+                    print(vlan_info)
+                    print(
+                        tabulate(
+                            interfaces_and_vlan,
+                            headers=['\nInterface', 'Admin\nStatus', '\nConnection', '\nDescription', '\nVLAN'],
+                            tablefmt="fancy_grid"
+                        )
+                    )
 
             # Alcatel, Linksys
             elif findall(r'SW version\s+', version):
@@ -204,8 +177,12 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉")
+
+                if 'vlan' in mode:
+                    print('В разработке...')
 
             # Edge-Core
             elif findall(r'Hardware version', version):
@@ -218,10 +195,14 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
                     print("Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉")
                 if 'sys-info' in mode:
                     print(edge_core.show_device_info(telnet_session=telnet))
+
+                if 'vlan' in mode:
+                    print('В разработке...')
 
             # Zyxel
             elif findall(r'ZyNOS', version):
@@ -246,17 +227,18 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     elif bool(findall(r'Boot version:', version)):
                         eltex_type = 'eltex-esr'
                         print(output)
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=output,
-                            vendor=eltex_type,
-                            interface_filter=interface_filter
-                        )
-                    )
+                    if eltex_type == 'eltex-esr':
+                        print(eltex.show_mac_esr_12vf(telnet))
+                    else:
+                        print(eltex.show_mac_mes(telnet, output, interface_filter))
+
                 if 'sys-info' in mode:
                     print(eltex.show_device_info(telnet_session=telnet))
+
+                if 'vlan' in mode:
+                    print('В разработке...')
 
             # Extreme
             elif findall(r'ExtremeXOS', version):
@@ -270,17 +252,15 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=result,
-                            vendor='extreme',
-                            interface_filter=interface_filter
-                        )
-                    )
+                    print(extreme.show_mac(telnet, result, interface_filter))
+
                 if 'sys-info' in mode:
                     print(extreme.show_device_info(telnet_session=telnet))
+
+                if 'vlan' in mode:
+                    print('В разработке...')
 
             # Q-TECH
             elif findall(r'QTECH', version):
@@ -293,17 +273,15 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                                  tablefmt="fancy_grid"
                                  )
                     )
+
                 if 'mac' in mode:
-                    print(
-                        show_mac(
-                            telnet_session=telnet,
-                            output=result,
-                            vendor='q-tech',
-                            interface_filter=interface_filter
-                        )
-                    )
+                    print(qtech.show_mac(telnet, result, interface_filter))
+
                 if 'sys-info' in mode:
                     print(qtech.show_device_info(telnet_session=telnet))
+
+                if 'vlan' in mode:
+                    print('В разработке...')
 
         except pexpect.exceptions.TIMEOUT:
             print("    Время ожидания превышено! (timeout)")

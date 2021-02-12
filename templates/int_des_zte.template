@@ -4,7 +4,7 @@ Value LINK (\S+)
 Value DESC (\S*)
 
 Start
-  ^.*PortId\s*:\s+${INTF}\s+MediaType\s*:\s+
+  ^.*PortId\s*:\s*${INTF}
   ^.*(PortName|Description)\s*:\s+${DESC}
   ^.*PortEnable\s*:\s+${AD_STAT}
   ^.*PortClass\s*:\s+\S+\s+Link\s+:\s+${LINK} -> Record
