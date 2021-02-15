@@ -73,21 +73,12 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                 print("    Тип оборудования: Huawei")
                 if 'показать_интерфейсы' in mode:
                     result, huawei_type = huawei.show_interfaces(telnet_session=telnet)
-
-                    if huawei_type == 'huawei-1':
-                        print(
-                            tabulate(result,
-                                     headers=['\nInterface', 'Port\nStatus', '\nDescription'],
-                                     tablefmt="fancy_grid"
-                                     )
-                        )
-                    else:
-                        print(
-                            tabulate(result,
-                                     headers=['\nInterface', 'Port\nStatus', '\nDescription'],
-                                     tablefmt="fancy_grid"
-                                     )
-                        )
+                    print(
+                        tabulate(result,
+                                 headers=['\nInterface', 'Port\nStatus', '\nDescription'],
+                                 tablefmt="fancy_grid"
+                                 )
+                    )
 
                 if 'mac' in mode:
                     if huawei_type == 'huawei-1':
@@ -103,7 +94,9 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
 
                 if 'vlan' in mode:
                     result, huawei_type = huawei.show_interfaces(telnet_session=telnet)
-                    vlan_info, vlan_result = huawei.show_vlans(telnet_session=telnet, interfaces=result)
+                    vlan_info, vlan_result = huawei.show_vlans(
+                        telnet_session=telnet, interfaces=result, device_type=huawei_type
+                    )
                     print(
                         tabulate(
                             vlan_result,

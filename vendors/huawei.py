@@ -364,10 +364,10 @@ def show_cable_diagnostic(telnet_session):
     return cable_diagnostic
 
 
-def show_vlans(telnet_session, interfaces) -> tuple:
+def show_vlans(telnet_session, interfaces, device_type: str = 'huawei-1') -> tuple:
     result = []
     for line in interfaces:
-        if not line[0].startswith('V') and not line[0].startswith('NU'):
+        if not line[0].startswith('V') and not line[0].startswith('NU') and not line[0].startswith('A'):
             telnet_session.sendline(f"display current-configuration interface {interface_normal_view(line[0])}")
             # telnet_session.expect(f"interface {interface_normal_view(line[0])}")
             output = ''
@@ -400,8 +400,13 @@ def show_vlans(telnet_session, interfaces) -> tuple:
             # print(line + [vlans_compact_str])
             result.append(line + [vlans_compact_str])
 
-    telnet_session.sendline(f"display vlan")
-    telnet_session.expect(r"VID\s+Status\s+Property")
+    if device_type == 'huawei-1':
+        telnet_session.sendline(f"display vlan")
+        telnet_session.expect(r"VID\s+Status\s+Property")
+    else:
+        telnet_session.sendline(f"display vlan all")
+        telnet_session.expect(f"display vlan all")
+
     vlans_info = ''
     while True:
         match = telnet_session.expect([r'>', "  ---- More ----", pexpect.TIMEOUT])
@@ -416,7 +421,7 @@ def show_vlans(telnet_session, interfaces) -> tuple:
             print("    Ошибка: timeout")
             break
 
-    with open(f'{root_dir}/templates/vlans_templates/huawei_vlan_info.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/vlans_templates/{device_type}_vlan_info.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)
         vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы
 
