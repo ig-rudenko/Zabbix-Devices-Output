@@ -129,7 +129,16 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     print(cisco.show_device_info(telnet_session=telnet))
 
                 if 'vlan' in mode:
-                    print('В разработке...')
+                    result = cisco.show_interfaces(telnet_session=telnet)
+                    vlans_info, vlans_table = cisco.show_vlans(telnet_session=telnet, interfaces=result)
+                    print(
+                        tabulate(
+                            vlans_table,
+                            headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription', '\nVLAN\'s'],
+                            tablefmt="fancy_grid"
+                        )
+                    )
+                    print(vlans_info)
 
             # D-Link
             elif findall(r'Next possible completions:', version):
@@ -157,7 +166,6 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                         telnet_session=telnet,
                         interfaces=d_link.show_interfaces(telnet_session=telnet)
                     )
-                    print(vlan_info)
                     print(
                         tabulate(
                             interfaces_and_vlan,
@@ -165,6 +173,7 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                             tablefmt="fancy_grid"
                         )
                     )
+                    print(vlan_info)
 
             # Alcatel, Linksys
             elif findall(r'SW version\s+', version):
