@@ -102,7 +102,18 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     print(huawei.show_cable_diagnostic(telnet_session=telnet))
 
                 if 'vlan' in mode:
-                    print('В разработке...')
+                    result, huawei_type = huawei.show_interfaces(telnet_session=telnet)
+                    vlan_info, vlan_result = huawei.show_vlans(telnet_session=telnet, interfaces=result)
+                    print(
+                        tabulate(
+                            vlan_result,
+                            headers=['\nInterface', 'Port\nStatus', '\nDescription'],
+                            tablefmt="fancy_grid"
+                        )
+                    )
+                    print(
+                        tabulate(vlan_info, headers=['VLAN', 'Name'])
+                    )
 
             # Cisco
             elif findall(r'Cisco IOS', version):
@@ -320,7 +331,10 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
             print("    Время ожидания превышено! (timeout)")
 
 # device_name = sys.argv[1]   # 'SVSL-933-Odesskaya5-SZO'
-# ip = sys.argv[2]            # eltex '192.168.195.19' d-link '172.20.69.106' cisco '192.168.228.57'
+# ip = sys.argv[2]
+# eltex '192.168.195.19'
+# d-link '172.20.69.106'
+# cisco '192.168.228.57'
 # mode = sys.argv[3]          # '--show-interfaces'
 
 
