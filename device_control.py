@@ -138,7 +138,12 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                             tablefmt="fancy_grid"
                         )
                     )
-                    print(vlans_info)
+                    print(
+                        tabulate(
+                            vlans_info,
+                            headers=['VLAN', 'Name', 'Status']
+                        )
+                    )
 
             # D-Link
             elif findall(r'Next possible completions:', version):

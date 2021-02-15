@@ -196,7 +196,7 @@ def show_vlans(telnet_session, interfaces) -> tuple:
                     print("    Ошибка: timeout")
                     break
             vlans_group = findall(r'vlan [add ]*(\S*\d)', output)   # Строчки вланов
-            switchport_mode = findall(r'switchport mode (\S+)', output)  # тип порта access/trunk/hybrid
+            switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode
             max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
             vlans_compact_str = ''      # Строка со списком VLANов с переносами
             line_str = ''
@@ -227,5 +227,8 @@ def show_vlans(telnet_session, interfaces) -> tuple:
         else:
             print("    Ошибка: timeout")
             break
+    with open(f'{root_dir}/templates/vlans_templates/cisco_vlan_info.template', 'r') as template_file:
+        vlans_info_template = textfsm.TextFSM(template_file)
+        vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы
 
-    return vlans_info, result
+    return vlans_info_table, result
