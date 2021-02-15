@@ -132,3 +132,63 @@ def show_device_info(telnet_session):
     info += telnet_session.before.decode('utf-8')
     info += '\n\n'
     return info
+
+
+def show_vlans(telnet_session, interfaces) -> tuple:
+    result = []
+    for line in interfaces:
+        if not line[0].startswith('V'):
+            telnet_session.sendline(f"show running-config interface {interface_normal_view(line[0])}")
+            telnet_session.expect(f"interface {interface_normal_view(line[0])}")
+            output = ''
+            while True:
+                match = telnet_session.expect([r'#', "More: <space>", pexpect.TIMEOUT])
+                page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+                    "        ", '')
+                output += page.strip()
+                if match == 0:
+                    break
+                elif match == 1:
+                    telnet_session.send(" ")
+                    output += '\n'
+                else:
+                    print("    Ошибка: timeout")
+                    break
+            vlans_group = findall(r'vlan [add ]*(\S*\d)', output)   # Строчки вланов
+            switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode
+            max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+            vlans_compact_str = ''      # Строка со списком VLANов с переносами
+            line_str = ''
+            for part in ','.join(switchport_mode + vlans_group).split(','):
+                if len(line_str) + len(part) <= max_letters_in_string:
+                    line_str += f'{part},'
+                else:
+                    vlans_compact_str += f'{line_str}\n'
+                    line_str = f'{part},'
+            else:
+                vlans_compact_str += line_str[:-1]
+
+            result.append(line + [vlans_compact_str])
+
+    telnet_session.sendline(f"show vlan")
+    telnet_session.expect("show vlan")
+    vlans_info = ''
+    while True:
+        match = telnet_session.expect([r'#', "More: <space>", pexpect.TIMEOUT])
+        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+            "        ", '')
+        vlans_info += page.strip()
+        if match == 0:
+            break
+        elif match == 1:
+            telnet_session.send(" ")
+            vlans_info += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+
+    with open(f'{root_dir}/templates/vlans_templates/eltex_vlan_info.template', 'r') as template_file:
+        vlans_info_template = textfsm.TextFSM(template_file)
+        vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы
+
+    return vlans_info_table, result

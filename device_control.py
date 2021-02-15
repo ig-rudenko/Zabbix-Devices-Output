@@ -252,7 +252,26 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     print(eltex.show_device_info(telnet_session=telnet))
 
                 if 'vlan' in mode:
-                    print('В разработке...')
+                    if bool(findall(r'Active-image:', version)):
+                        eltex_type = 'eltex-mes'
+                        output = eltex.show_interfaces(telnet_session=telnet)
+                        with open(f'{root_dir}/templates/int_des_eltex.template', 'r') as template_file:
+                            int_des_ = textfsm.TextFSM(template_file)
+                            result = int_des_.ParseText(output)  # Ищем интерфейсы
+                        vlans_info, vlans_table = eltex.show_vlans(telnet_session=telnet, interfaces=result)
+                        print(
+                            tabulate(
+                                vlans_table,
+                                headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription', '\nVLAN\'s'],
+                                tablefmt="fancy_grid"
+                            )
+                        )
+                        print(
+                            tabulate(
+                                vlans_info,
+                                headers=['VLAN', 'Name']
+                            )
+                        )
 
             # Extreme
             elif findall(r'ExtremeXOS', version):
