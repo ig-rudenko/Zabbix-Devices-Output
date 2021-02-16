@@ -1,0 +1,5 @@
+Value VID (\d+)
+Value PORTS (.+)
+
+Start
+  ^.*vlan v${VID} add ports ${PORTS} (tagged|untagged) -> Record

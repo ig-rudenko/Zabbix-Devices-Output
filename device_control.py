@@ -109,7 +109,7 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     )
 
             # Cisco
-            elif findall(r'Cisco IOS', version):
+            elif findall(r'Cisco IOS|cisco', version):
                 print("    Тип оборудования: Cisco\n")
                 if 'показать_интерфейсы' in mode:
                     if match == 1:  # если поймали `>`
@@ -284,10 +284,11 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     result = extreme.show_interfaces(telnet_session=telnet)
 
                     print(
-                        tabulate(result,
-                                 headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
-                                 tablefmt="fancy_grid"
-                                 )
+                        tabulate(
+                            result,
+                            headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription'],
+                            tablefmt="fancy_grid"
+                        )
                     )
 
                 if 'mac' in mode:
@@ -297,7 +298,14 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
                     print(extreme.show_device_info(telnet_session=telnet))
 
                 if 'vlan' in mode:
-                    print('В разработке...')
+                    result = extreme.show_interfaces(telnet_session=telnet)
+                    print(
+                        tabulate(
+                            extreme.show_vlans(telnet_session=telnet, interfaces=result),
+                            headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription', '\nVLAN\'s'],
+                            tablefmt="fancy_grid"
+                        )
+                    )
 
             # Q-TECH
             elif findall(r'QTECH', version):

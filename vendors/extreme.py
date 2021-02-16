@@ -183,3 +183,65 @@ def show_device_info(telnet_session):
     info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
         "\x1b[m\x1b[60;D\x1b[K", '')
     return info
+
+
+def range_to_numbers(ports_string: str) -> list:
+    ports_split = ports_string.replace(' ', '').split(',')
+    res_ports = []
+    for p in ports_split:
+        if '-' in p:
+            port_range = list(range(int(p.split('-')[0]), int(p.split('-')[1])+1))
+            for pr in port_range:
+                res_ports.append(int(pr))
+        else:
+            res_ports.append(int(p))
+
+    return sorted(res_ports)
+
+
+def show_vlans(telnet_session, interfaces: list):
+    telnet_session.sendline(f'show configuration "vlan"')
+    telnet_session.expect('Module vlan configuration.')
+    telnet_session.expect('#')
+    output_vlans = ''
+    while True:
+        match = telnet_session.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
+        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+            "\x1b[m\x1b[60;D\x1b[K", '')
+        output_vlans += page.strip()
+        if match == 0:
+            break
+        elif match == 1:
+            telnet_session.send(" ")
+            output_vlans += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+    with open(f'{root_dir}/templates/vlans_templates/extreme.template', 'r') as template_file:
+        vlan_templ = textfsm.TextFSM(template_file)
+        result_vlans = vlan_templ.ParseText(output_vlans)
+
+    # Создаем словарь, где ключи это кол-во портов, а значениями будут вланы на них
+    ports_vlan = {num: [] for num in range(1, len(interfaces) + 1)}
+
+    for vlan in result_vlans:
+        for port in range_to_numbers(vlan[1]):
+            # Добавляем вланы на порты
+            ports_vlan[port].append(vlan[0])
+    interfaces_vlan = []  # итоговый список (интерфейсы и вланы)
+
+    for line in interfaces:
+        max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+        vlans_compact_str = ''  # Строка со списком VLANов с переносами
+        line_str = ''
+        for part in ports_vlan[int(line[0])]:
+            if len(line_str) + len(part) <= max_letters_in_string:
+                line_str += f'{part},'
+            else:
+                vlans_compact_str += f'{line_str}\n'
+                line_str = f'{part},'
+        else:
+            vlans_compact_str += line_str[:-1]
+        # Итоговая строка: порт, статус, описание + вланы
+        interfaces_vlan.append(line + [vlans_compact_str])
+    return interfaces_vlan
