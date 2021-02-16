@@ -79,7 +79,8 @@ def show_interfaces(telnet_session) -> list:
     with open(f'{root_dir}/templates/int_des_cisco.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-    return result
+
+    return [line for line in result if not line[0].startswith('V')]
 
 
 def show_device_info(telnet_session):

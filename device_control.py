@@ -359,8 +359,9 @@ mode = sys.argv[3]
 if len(sys.argv) >= 5:
     interface_filter = sys.argv[4]
 
-show_information(dev=device_name,
-                 ip=ip,
-                 mode=mode,
-                 interface_filter=interface_filter
-                 )
+show_information(
+    dev=device_name,
+    ip=ip,
+    mode=mode,
+    interface_filter=interface_filter
+)
