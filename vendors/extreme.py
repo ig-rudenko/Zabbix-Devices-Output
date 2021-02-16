@@ -244,4 +244,10 @@ def show_vlans(telnet_session, interfaces: list):
             vlans_compact_str += line_str[:-1]
         # Итоговая строка: порт, статус, описание + вланы
         interfaces_vlan.append(line + [vlans_compact_str])
-    return interfaces_vlan
+
+    # Описание VLAN'ов
+    with open(f'{root_dir}/templates/vlans_templates/extreme_vlan_info.template', 'r') as template_file:
+        vlan_templ = textfsm.TextFSM(template_file)
+        vlans_info = vlan_templ.ParseText(output_vlans)
+    vlans_info = sorted(vlans_info, key=lambda line: int(line[0]))  # Сортировка по возрастанию vlan
+    return vlans_info, interfaces_vlan

@@ -299,11 +299,18 @@ def show_information(dev: str, ip: str, mode: str = '', interface_filter: str = 
 
                 if 'vlan' in mode:
                     result = extreme.show_interfaces(telnet_session=telnet)
+                    vlans_info, vlans_table = extreme.show_vlans(telnet_session=telnet, interfaces=result)
                     print(
                         tabulate(
-                            extreme.show_vlans(telnet_session=telnet, interfaces=result),
+                            vlans_table,
                             headers=['\nInterface', 'Admin\nStatus', '\nLink', '\nDescription', '\nVLAN\'s'],
                             tablefmt="fancy_grid"
+                        )
+                    )
+                    print(
+                        tabulate(
+                            vlans_info,
+                            headers=['VLAN', 'Name']
                         )
                     )
 
