@@ -160,13 +160,16 @@ def show_vlans(telnet_session, interfaces: list) -> tuple:
     interfaces_vlan = []    # итоговый список (интерфейсы и вланы)
 
     for line in interfaces:
-        interfaces_vlan.append(
-            line + [
-                ', '.join(
-                    ports_vlan[
-                        int(findall(r'\d+', line[0])[0])
-                    ]
-                )
-            ]
-        )
+        max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+        vlans_compact_str = ''  # Строка со списком VLANов с переносами
+        line_str = ''
+        for part in ports_vlan[int(findall(r'\d+', line[0])[0])]:
+            if len(line_str) + len(part) <= max_letters_in_string:
+                line_str += f'{part},'
+            else:
+                vlans_compact_str += f'{line_str}\n'
+                line_str = f'{part},'
+        else:
+            vlans_compact_str += line_str[:-1]
+        interfaces_vlan.append(line + [vlans_compact_str])
     return vlans_info, interfaces_vlan
