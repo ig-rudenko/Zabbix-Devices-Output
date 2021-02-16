@@ -145,7 +145,7 @@ def show_interfaces(telnet_session, huawei_type: str = 'huawei-1', privileged: b
     with open(f'{root_dir}/templates/int_des_huawei{template_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-    return result, huawei_type
+    return [line for line in result if not line[0].startswith('NULL') and not line[0].startswith('V')], huawei_type
 
 
 def show_device_info(telnet_session):
