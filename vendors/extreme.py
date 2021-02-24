@@ -1,19 +1,18 @@
 import pexpect
 from re import findall
-import os
 import sys
 import textfsm
 
-root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
+root_dir = sys.path[0]
 
 
-def show_mac(telnet_session, output: list, interface_filter: str) -> str:
+def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
 
     intf_to_check = []  # Интерфейсы для проверки
     mac_output = ''  # Вывод MAC
-    not_uplinks = True if interface_filter == '--only-abonents' else False
+    not_uplinks = True if interface_filter == 'only-abonents' else False
 
-    for line in output:
+    for line in interfaces:
         if (
                 (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
                 or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
@@ -33,6 +32,7 @@ def show_mac(telnet_session, output: list, interface_filter: str) -> str:
 
     for intf in intf_to_check:  # для каждого интерфейса
         telnet_session.sendline(f'show fdb ports {intf[0]}')
+        telnet_session.expect(f'show fdb ports {intf[0]}')
         separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
         mac_output += f'\n    Интерфейс: {intf[0]} ({intf[1]})\n'\
                       f'    {separator_str}\n'
@@ -40,7 +40,7 @@ def show_mac(telnet_session, output: list, interface_filter: str) -> str:
             match = telnet_session.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
             page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
                 "\x1b[m\x1b[60;D\x1b[K", '')
-            mac_output += page.strip()
+            mac_output += page.split('Flags : ')[0].strip()
             if match == 0:
                 break
             elif match == 1:
@@ -185,21 +185,21 @@ def show_device_info(telnet_session):
     return info
 
 
-def range_to_numbers(ports_string: str) -> list:
-    ports_split = ports_string.replace(' ', '').split(',')
-    res_ports = []
-    for p in ports_split:
-        if '-' in p:
-            port_range = list(range(int(p.split('-')[0]), int(p.split('-')[1])+1))
-            for pr in port_range:
-                res_ports.append(int(pr))
-        else:
-            res_ports.append(int(p))
-
-    return sorted(res_ports)
-
-
 def show_vlans(telnet_session, interfaces: list):
+
+    def range_to_numbers(ports_string: str) -> list:
+        ports_split = ports_string.replace(' ', '').split(',')
+        res_ports = []
+        for p in ports_split:
+            if '-' in p:
+                port_range = list(range(int(p.split('-')[0]), int(p.split('-')[1]) + 1))
+                for pr in port_range:
+                    res_ports.append(int(pr))
+            else:
+                res_ports.append(int(p))
+
+        return sorted(res_ports)
+
     telnet_session.sendline(f'show configuration "vlan"')
     telnet_session.expect('Module vlan configuration.')
     telnet_session.expect('#')

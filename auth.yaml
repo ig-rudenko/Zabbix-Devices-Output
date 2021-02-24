@@ -1,0 +1,22 @@
+GROUPS:
+  group_1:
+    login: admin_1
+    password: admin_1
+    devices_by_ip:
+      - 192.168.1.2-200
+      - 192.168.2.0/24
+      - 192.168.0.4
+    devices_by_name:
+      - device_1
+      - device_2
+      - device_3
+
+MIXED:
+    login:
+      - admin
+      - Admin
+      - admin
+    password:
+      - 12345
+      - password
+      - admin

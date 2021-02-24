@@ -1,11 +1,10 @@
 import pexpect
 from re import findall, sub
-import os
 import sys
 import textfsm
 from func.intf_view import interface_normal_view
 
-root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
+root_dir = sys.path[0]
 
 
 def show_interfaces(telnet_session) -> list:
@@ -72,3 +71,11 @@ def show_interfaces(telnet_session) -> list:
                        result_port_link[postition][0],  # link
                        result_port_des[postition][0]])  # description
     return result
+
+
+def show_device_info(telnet_session):
+    info = ''
+    telnet_session.sendline('show system')
+    telnet_session.expect('show system')
+
+    return info

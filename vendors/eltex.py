@@ -1,18 +1,18 @@
 import pexpect
 from re import findall, sub
-import os
 import sys
 import textfsm
 from func.intf_view import interface_normal_view
 
-root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
+root_dir = sys.path[0]
 
 
-def show_interfaces(telnet_session) -> str:
+def show_interfaces(telnet_session, eltex_type: str = 'mes') -> str:
     telnet_session.sendline("show int des")
+    telnet_session.expect("show int des")
     output = ''
     while True:
-        match = telnet_session.expect([r'# ', "More: <space>", pexpect.TIMEOUT])
+        match = telnet_session.expect([r'\S+#', "More: <space>", pexpect.TIMEOUT])
         page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
             "        ", '')
         output += page.strip()
@@ -27,7 +27,10 @@ def show_interfaces(telnet_session) -> str:
         else:
             print("    Ошибка: timeout")
             break
-    return output
+    with open(f'{root_dir}/templates/int_des_{eltex_type}.template', 'r') as template_file:
+        int_des_ = textfsm.TextFSM(template_file)
+        result = int_des_.ParseText(output)  # Ищем интерфейсы
+    return result
 
 
 def show_mac_esr_12vf(telnet_session) -> str:
@@ -40,16 +43,12 @@ def show_mac_esr_12vf(telnet_session) -> str:
     return mac_output
 
 
-def show_mac_mes(telnet_session, output: str, interface_filter: str) -> str:
+def show_mac_mes(telnet_session, interfaces: list, interface_filter: str) -> str:
     intf_to_check = []  # Интерфейсы для проверки
     mac_output = ''  # Вывод MAC
-    not_uplinks = True if interface_filter == '--only-abonents' else False
+    not_uplinks = True if interface_filter == 'only-abonents' else False
 
-    with open(f'{root_dir}/templates/int_des_eltex.template', 'r') as template_file:
-        int_des_ = textfsm.TextFSM(template_file)
-        result = int_des_.ParseText(output)  # Ищем интерфейсы
-
-    for line in result:
+    for line in interfaces:
         if (
                 (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
                 or (not_uplinks and  # ИЛИ все интерфейсы, кроме:

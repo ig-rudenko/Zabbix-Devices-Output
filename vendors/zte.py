@@ -1,11 +1,10 @@
 import pexpect
 from re import findall, sub
-import os
 import sys
 import textfsm
 from func.intf_view import interface_normal_view
 
-root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
+root_dir = sys.path[0]
 
 
 def show_interfaces(telnet_session) -> list:
@@ -34,12 +33,12 @@ def show_interfaces(telnet_session) -> list:
     return result
 
 
-def show_mac(telnet_session, output: list, interface_filter: str):
+def show_mac(telnet_session, interfaces: list, interface_filter: str):
     intf_to_check = []
     mac_output = ''
-    not_uplinks = True if interface_filter == '--only-abonents' else False
+    not_uplinks = True if interface_filter == 'only-abonents' else False
 
-    for line in output:
+    for line in interfaces:
         if (
                 (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
                 or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
@@ -82,3 +81,7 @@ def show_mac(telnet_session, output: list, interface_filter: str):
     if not intf_to_check:
         return f'Не найдены запрашиваемые интерфейсы на данном оборудовании!'
     return mac_output
+
+
+def show_device_info(telnet_session):
+    pass

@@ -1,11 +1,10 @@
 import pexpect
-from re import findall, sub
-import os
+from re import findall
 import sys
 import textfsm
 from func.intf_view import interface_normal_view
 
-root_dir = os.path.join(os.getcwd(), os.path.split(sys.argv[0])[0])
+root_dir = sys.path[0]
 
 
 def show_interfaces(telnet_session) -> list:
