@@ -10,19 +10,20 @@
 * VLAN на портах
 
 #### Список поддерживаемых устройств и функционал
-      vendor    vlans    MAC     interfaces   sys-info    cable-diag
-  
-      Cisco       ✅      ✅         ✅          ✅           
-      Huawei      ✅      ✅         ✅          ✅           ✅
-      D-Link      ✅      ✅         ✅          ✅           ✅
-      Eltex       ✅      ✅         ✅          ✅           
-      Edge-Core                      ✅          ✅
-      Extreme     ✅                 ✅          ✅           
-      Q-Tech              ✅         ✅          ✅           
-      ZTE                 ✅         ✅
-      Alcatel                        ✅
-      Lynksys                        ✅
- 
+
+| VENDOR  | interfaces | MAC | sys-info | vlans | cable-diag |
+| :----:|:----:|:---:|:----:|:----:|:----:|
+| Cisco     | ✅ | ✅ | ✅ | ✅ |  |
+| Huawei    | ✅ | ✅ | ✅ | ✅ | ✅ |
+| D-Link    | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Eltex     | ✅ | ✅ | ✅ | ✅ |  |
+| Edge-Core | ✅ |   | ✅ |   |   |
+| Extreme   | ✅ |   | ✅ | ✅ |   |
+| Q-Tech    | ✅ | ✅ | ✅ |   |   |
+| ZTE       | ✅ | ✅ |   |   |   |
+| Alcatel   | ✅ |   |   |   |   |
+| Lynksys   | ✅ |   |   |   |   |
+
 ## Рассмотрим работу на примере
 
 ```python
