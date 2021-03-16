@@ -8,6 +8,6 @@ A simple template language is used to describe a state machine to
 parse a specific type of text input, returning a record of values
 for each input entity.
 """
-from textfsm.parser import *
+from core.textfsm.parser import *
 
 __version__ = '1.1.0'

@@ -27,7 +27,8 @@
 ## Рассмотрим работу на примере
 
 ```python
-import tc
+
+from core import tc
 
 session = tc.TelnetConnect(ip='192.168.0.10', device_name='device')
 ```
@@ -35,16 +36,16 @@ session = tc.TelnetConnect(ip='192.168.0.10', device_name='device')
 - **device_name** - опциональный (по умолчанию пустая строка)
 
 После создания экземпляра класса необходимо указать тип авторизации для устройства
-#####1. Авторизация по умолчанию
+##### 1. Авторизация по умолчанию
 ```python
 session.set_authentication()
 ```
 Если не передавать никакие аргументы, то будет произведена попытка авторизироваться как admin/admin
-#####2. Авторизация с помощью логина и пароля
+##### 2. Авторизация с помощью логина и пароля
 ```python
 session.set_authentication(login='admin', password='password')
 ```
-#####3. Авторизация с помощью группы:
+##### 3. Авторизация с помощью группы:
 ```python
 session.set_authentication(mode='group', auth_file='./auth.yaml', auth_group='group_1')
 ```
@@ -52,7 +53,7 @@ session.set_authentication(mode='group', auth_file='./auth.yaml', auth_group='gr
 - **auth_file** - путь к файлу с авторизацией (по умолчанию ./auth.yaml)
 - **auth_group** - имя группы, которая находится в файле, указанном в параметре **auth_file** (указывается, если выбран mode='group')
 
-#####4. Авторизация вперемешку
+##### 4. Авторизация вперемешку
 ```python
 session.set_authentication(mode='mixed', auth_file='./auth.yaml')
 ```
@@ -66,14 +67,14 @@ session.set_authentication(login=['admin', 'Admin'], password=['admin', 'passwor
 ```
 Если длина списков различается, то обрезается по меньшему
 
-#####5. Автоматическая авторизация
+##### 5. Автоматическая авторизация
 
 ```python
 session.set_authentication(mode='auto')
 ```
 В данном случае логин и пароль будут выбраны автоматически, если **ip** либо **device_name** принадлежат какой-либо группе в файле авторизации
 
-###Файл auth.yaml
+### Файл auth.yaml
 
 Файл авторизации имеет формат YAML
 
@@ -139,10 +140,16 @@ MIXED:
       - 12345678
 ```
 
+##### Далее подключаемся к оборудованию
+
+```python
+session.connect()
+```
+При успешном подключении возвращает **True**, в случае неудачи **False**
 #### Пример работы программы
     
 
-    $ ./telnet_control/device_control.py -n device_name -m показать_интерфейсы 192.168.1.10
+    $ ./telnet_control/device_control.py -N device_name -m показать_интерфейсы 192.168.1.10
         
         Подключаемся к device_name (192.168.1.10)
     

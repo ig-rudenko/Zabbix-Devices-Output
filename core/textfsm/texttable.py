@@ -39,7 +39,7 @@ from builtins import str       # pylint: disable=redefined-builtin
 from builtins import zip       # pylint: disable=redefined-builtin
 import six
 
-from textfsm import terminal
+from core.textfsm import terminal
 
 
 class Error(Exception):

@@ -1,8 +1,7 @@
-import pexpect
 from re import findall, sub
 import sys
-import textfsm
-from func.intf_view import interface_normal_view
+from core import textfsm
+from core.intf_view import interface_normal_view
 
 root_dir = sys.path[0]
 

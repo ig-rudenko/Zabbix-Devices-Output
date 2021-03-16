@@ -1,7 +1,7 @@
 import pexpect
 from re import findall
 import sys
-import textfsm
+from core import textfsm
 
 root_dir = sys.path[0]
 

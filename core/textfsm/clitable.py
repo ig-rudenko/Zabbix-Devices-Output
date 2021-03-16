@@ -35,10 +35,9 @@ import re
 import threading
 from builtins import object    # pylint: disable=redefined-builtin
 from builtins import str       # pylint: disable=redefined-builtin
-import textfsm
+from core import textfsm
 
-from textfsm import copyable_regex_object
-from textfsm import texttable
+from core.textfsm import texttable, copyable_regex_object
 
 
 class Error(Exception):
