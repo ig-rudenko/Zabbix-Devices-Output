@@ -136,34 +136,31 @@ class TelnetConnect:
         connected = False
         self.telnet_session = pexpect.spawn(f"telnet {self.ip}")
         try:
-            for login, password in zip(self.login, self.password):
+            for login, password in zip(self.login+['admin'], self.password+['admin']):
                 while not connected:  # Если не авторизировались
                     login_stat = self.telnet_session.expect(
                         [
                             r"[Ll]ogin(?![-\siT]).*:\s*$",  # 0
-                            r"[Uu]ser\s(?![lfp]).*:\s*$",  # 1
-                            r"[Nn]ame.*:\s*$",  # 2
-                            r'[Pp]ass.*:\s*$',  # 3
-                            r'Connection closed',  # 4
-                            r'Unable to connect',  # 5
-                            r']$',  # 6
-                            r'>\s*$',  # 7
-                            r'#\s*$',  # 8
+                            r"[Uu]ser\s(?![lfp]).*:\s*$",   # 1
+                            r"[Nn]ame.*:\s*$",              # 2
+                            r'[Pp]ass.*:\s*$',              # 3
+                            r'Connection closed',           # 4
+                            r'Unable to connect',           # 5
+                            r'[#>\]]\s*$'                   # 6
                         ],
                         timeout=20
                     )
                     if login_stat < 3:
                         self.telnet_session.sendline(login)  # Вводим логин
-
+                        continue
                     if 4 <= login_stat <= 5:
                         print(f"    Telnet недоступен! {self.device_name} ({self.ip})")
                         return False
                     if login_stat == 3:
                         self.telnet_session.sendline(password)  # Вводим пароль
-
                     if login_stat >= 6:  # Если был поймал символ начала ввода команды
                         connected = True  # Подключились
-                        break  # Выход из цикла
+                    break  # Выход из цикла
 
                 if connected:
                     break
@@ -315,7 +312,7 @@ class TelnetConnect:
                 for line in self.raw_interfaces
             ]
         if 'q-tech' in self.vendor:
-            self.raw_interfaces, self.vendor = huawei.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = qtech.show_interfaces(telnet_session=self.telnet_session)
             self.interfaces = [
                 {'Interface': line[0], 'Link Status': line[1], 'Description': line[2]}
                 for line in self.raw_interfaces

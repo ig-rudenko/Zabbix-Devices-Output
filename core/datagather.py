@@ -7,8 +7,10 @@ class DataGather:
     def __init__(self, ip, name):
         self.db = DataBase()
         self.session = TelnetConnect(ip, name)
-        self.session.auth_group = self.db.get_item(ip=ip)[0][3] if self.db.get_item(ip=ip) else ''
-        self.session.vendor = self.db.get_item(ip=ip)[0][2] if self.db.get_item(ip=ip) else ''
+        self.session.vendor = self.db.get_item(ip=ip)[0][2] \
+            if self.db.get_item(ip=ip) and self.db.get_item(ip=ip)[0][2] != 'None' else ''
+        self.session.auth_group = self.db.get_item(ip=ip)[0][3]\
+            if self.db.get_item(ip=ip) and self.db.get_item(ip=ip)[0][3] != 'None' else ''
 
     def collect(self, mode: str = ''):
         if mode not in ['interfaces', 'sys-info']:

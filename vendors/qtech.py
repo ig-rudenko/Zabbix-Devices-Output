@@ -58,7 +58,7 @@ def show_interfaces(telnet_session) -> list:
     telnet_session.sendline("show interface ethernet status")
     output = ''
     while True:
-        match = telnet_session.expect([r'#$', "--More--", pexpect.TIMEOUT])
+        match = telnet_session.expect([r'[#>]$', "--More--", pexpect.TIMEOUT])
         page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
             "        ", '')
         output += page.strip()

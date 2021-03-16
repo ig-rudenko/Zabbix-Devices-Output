@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     parser.add_argument("-N", dest="device_name", help="device name")
     parser.add_argument("-i", dest='ip', help="device IP")
-    parser.add_argument("-m", dest="mode")
+    parser.add_argument("-m", dest="mode", help="show-interfaces, vlan, mac, sys-info, cable-diagnostic")
     parser.add_argument("--desc-filter", dest="description_filter")
     parser.add_argument("--auth-file", dest="auth_file")
     parser.add_argument("--auth-mode", dest="auth_mode", help="default, group, auto, mixed")

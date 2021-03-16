@@ -1,11 +1,8 @@
 import sqlite3
-from configparser import ConfigParser
 import sys
 import os
 from core.tabulate import tabulate
 
-# conf = ConfigParser()
-# conf.read(f'{sys.path[0]}/cbp.conf')
 db_path = f'{sys.path[0]}/db/database.db'
 if not os.path.exists(os.path.split(db_path)[0]):
     os.makedirs(os.path.split(db_path)[0])
