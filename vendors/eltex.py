@@ -7,18 +7,48 @@ from core.intf_view import interface_normal_view
 root_dir = sys.path[0]
 
 
+def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: str = None):
+    output = ''
+    session.sendline(command)
+    session.expect(command[-30:])
+    if next_catch:
+        session.expect(next_catch)
+    while True:
+        match = session.expect(
+            [
+                prompt,
+                r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> ",
+                pexpect.TIMEOUT
+            ]
+        )
+        output += session.before.decode('utf-8').strip()
+        if match == 0:
+            break
+        elif match == 1:
+            session.send(" ")
+            output += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+    return output
+
+
 def show_interfaces(telnet_session, eltex_type: str = 'mes') -> str:
     telnet_session.sendline("show int des")
     telnet_session.expect("show int des")
     output = ''
     while True:
-        match = telnet_session.expect([r'\S+#', "More: <space>", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        output += page.strip()
+        match = telnet_session.expect(
+            [
+                r'\S+#\s*$',
+                r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> ",
+                pexpect.TIMEOUT
+            ]
+        )
+        output += telnet_session.before.decode('utf-8').strip()
         if 'Ch       Port Mode (VLAN)' in output:
             telnet_session.sendline('q')
-            telnet_session.expect('#')
+            telnet_session.expect(r'\S+#\s*$')
             break
         if match == 0:
             break
@@ -37,8 +67,8 @@ def show_mac_esr_12vf(telnet_session) -> str:
     # Для Eltex ESR-12VF выводим всю таблицу MAC адресов
     mac_output = ''
     telnet_session.sendline(f'show mac address-table ')
-    telnet_session.expect('# ')
-    m_output = sub('.+\nVID', 'VID', str(telnet_session.before.decode('utf-8')))
+    telnet_session.expect(r'\S+# ')
+    m_output = sub(r'.+\nVID', 'VID', str(telnet_session.before.decode('utf-8')))
     mac_output += f"\n{m_output}"
     return mac_output
 
@@ -71,21 +101,25 @@ def show_mac_mes(telnet_session, interfaces: list, interface_filter: str) -> str
         separator_str = '─' * len(f'Интерфейс: {intf[1]}')
         mac_output += f'\n    Интерфейс: {intf[1]}\n    {separator_str}\n'
         telnet_session.expect(r'Aging time is \d+ \S+')
-
         while True:
-            match = telnet_session.expect([r'#$', "More: <space>", pexpect.TIMEOUT])
-            page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-                "        ", '').replace('[0m', '')
+            match = telnet_session.expect(
+                [
+                    r'\S+#\s*$',
+                    r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> ",
+                    pexpect.TIMEOUT
+                ]
+            )
+            page = telnet_session.before.decode('utf-8')
             mac_output += f"    {page.strip()}"
             if match == 0:
                 break
             elif match == 1:
-                telnet_session.expect('<return>')
+                # telnet_session.expect('<return>')
                 telnet_session.send(" ")
             else:
                 print("    Ошибка: timeout")
                 break
-        mac_output = sub('SVSL.+', '', mac_output)
+        # mac_output = sub('SVSL.+', '', mac_output)
         mac_output = sub(r'(?<=\d)(?=\S\S:\S\S:\S\S:\S\S:\S\S:\S\S)', r'     ', mac_output)
         mac_output = sub(r'Vlan\s+Mac\s+Address\s+Port\s+Type',
                          'Vlan          Mac_Address         Port       Type',
@@ -99,22 +133,22 @@ def show_device_info(telnet_session):
 
     # SYSTEM ID
     telnet_session.sendline('show system id')
-    telnet_session.expect('show system id\W+')
-    telnet_session.expect('\W+\S+#')
+    telnet_session.expect(r'show system id\W+')
+    telnet_session.expect(r'\W+\S+#')
     info += telnet_session.before.decode('utf-8')
     info += '\n\n'
 
     # VERSION
     telnet_session.sendline('show system')
-    telnet_session.expect('show system')
-    telnet_session.expect('\W+\S+#')
+    telnet_session.expect(r'show system')
+    telnet_session.expect(r'\W+\S+#')
     info += telnet_session.before.decode('utf-8')
     info += '\n\n'
 
     # CPU
     telnet_session.sendline('show cpu utilization')
-    telnet_session.expect('show cpu utilization')
-    telnet_session.expect('\S+#')
+    telnet_session.expect(r'show cpu utilization')
+    telnet_session.expect(r'\S+#')
     info += '   ┌──────────────┐\n'
     info += '   │ ЗАГРУЗКА CPU │\n'
     info += '   └──────────────┘\n'
@@ -123,8 +157,8 @@ def show_device_info(telnet_session):
 
     # SNMP
     telnet_session.sendline('show snmp')
-    telnet_session.expect('show snmp\W+')
-    telnet_session.expect('\W+\S+#$')
+    telnet_session.expect(r'show snmp\W+')
+    telnet_session.expect(r'\W+\S+#$')
     info += '   ┌──────┐\n'
     info += '   │ SNMP │\n'
     info += '   └──────┘\n'
@@ -137,22 +171,10 @@ def show_vlans(telnet_session, interfaces) -> tuple:
     result = []
     for line in interfaces:
         if not line[0].startswith('V'):
-            telnet_session.sendline(f"show running-config interface {interface_normal_view(line[0])}")
-            telnet_session.expect(f"interface {interface_normal_view(line[0])}")
-            output = ''
-            while True:
-                match = telnet_session.expect([r'#', "More: <space>", pexpect.TIMEOUT])
-                page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-                    "        ", '')
-                output += page.strip()
-                if match == 0:
-                    break
-                elif match == 1:
-                    telnet_session.send(" ")
-                    output += '\n'
-                else:
-                    print("    Ошибка: timeout")
-                    break
+            output = send_command(
+                session=telnet_session,
+                command=f'show running-config interface {interface_normal_view(line[0])}'
+            )
             vlans_group = findall(r'vlan [add ]*(\S*\d)', output)   # Строчки вланов
             switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode
             max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
@@ -169,22 +191,10 @@ def show_vlans(telnet_session, interfaces) -> tuple:
 
             result.append(line + [vlans_compact_str])
 
-    telnet_session.sendline(f"show vlan")
-    telnet_session.expect("show vlan")
-    vlans_info = ''
-    while True:
-        match = telnet_session.expect([r'#', "More: <space>", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        vlans_info += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            vlans_info += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    vlans_info = send_command(
+        session=telnet_session,
+        command='show vlan'
+    )
 
     with open(f'{root_dir}/templates/vlans_templates/eltex_vlan_info.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)

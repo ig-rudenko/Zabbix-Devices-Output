@@ -16,7 +16,15 @@ from core.database import DataBase
 root_dir = sys.path[0]  # Полный путь к корневой папки
 
 
-def show_last_saved_data(command, device_ip, device_name):
+def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None:
+    """
+    Возвращает последние сохраненные данные (если имеются) из директории <root_dir>/data/<device_name>/
+
+    :param command: Строка команд, какие данные необходимо показать (interfaces, vlan, mac, cable-diagnostic, sys-info)
+    :param device_ip:   IP адрес устройства
+    :param device_name: Уникальное имя устройства
+    :return:            None
+    """
     print(f'Оборудование недоступно! ({device_ip})\n')
     if 'show-interfaces' in command and os.path.exists(f'{root_dir}/data/{device_name}/interfaces.yaml'):
         with open(f'{root_dir}/data/{device_name}/interfaces.yaml', 'r') as file:
@@ -51,19 +59,38 @@ def show_last_saved_data(command, device_ip, device_name):
 def show_info(device_name: str,
               device_ip: str,
               command: str = '',
-              interface_filter: str = 'NOMON',
+              interface_filter: str = r'NOMON',
               authentication_file_path: str = f'{root_dir}/auth.yaml',
               authentication_mode: str = 'mixed',
               authentication_group: str = None,
               login: Union[str, list, None] = None,
               password: Union[str, list, None] = None,
               privilege_mode_password: str = None):
+    """
+    Осуществляет взаимодействие с оборудованием (указание типа авторизации, подключение, сбор данных, вывод)
+
+    Если оборудование недоступно в данный момент, то будет выведена последняя сохраненная информация.
+
+    :param device_name: Уникальное имя устройства
+    :param device_ip:   IP адрес
+    :param command: Строка команд, какие данные необходимо собрать (interfaces, vlan, mac, cable-diagnostic, sys-info)
+    :param interface_filter: Регулярное выражение. Порты, чье описание совпадает с данным регулярным выражением,
+            необходимо добавить в процесс вывода MAC адресов
+    :param authentication_file_path: Полный путь к файлу аутентификации
+    :param authentication_mode: Тип аутентификации (group, mixed, auto). По умолчанию - mixed
+    :param authentication_group: Название группы, которая должна находиться в файле, указанном в переменной
+            authentication_file_path. По умолчанию root_dir/auth.yaml
+    :param login:
+    :param password:
+    :param privilege_mode_password:
+    :return:
+    """
 
     ip_check = subprocess.run(['ping', '-c', '3', '-n', device_ip], stdout=subprocess.DEVNULL)
     # Проверка на доступность: 0 - доступен, 1 и 2 - недоступен
     if ip_check.returncode == 2:
         print(f'Неправильный ip адрес: {device_ip}')
-        sys.exit()
+        return 0
 
     # Если оборудование недоступно
     elif ip_check.returncode == 1:
@@ -81,9 +108,9 @@ def show_info(device_name: str,
         if authentication_mode == 'mixed':
             session.set_authentication(mode='mixed', auth_file=authentication_file_path)
 
-        if not session.connect():  # Подключаемся
+        if not session.connect():  # Не удалось подключиться
             show_last_saved_data(command, device_ip, device_name)
-            sys.exit()
+            return 0
 
         print(f"\n    Подключаемся к {device_name} ({device_ip})\n"
               f"\n    Тип оборудования: {session.vendor}\n")

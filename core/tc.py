@@ -65,7 +65,7 @@ class TelnetConnect:
         self.vlan_info = None
         self.cable_diag = None
 
-    def set_authentication(self, mode: str = 'default', auth_file: str = f'{root_dir}/auth.yaml',
+    def set_authentication(self, mode: str = 'auto', auth_file: str = f'{root_dir}/auth.yaml',
                            auth_group: str = None, login: Union[str, list, None] = None,
                            password: Union[str, list, None] = None,
                            privilege_mode_password: str = None) -> None:
@@ -73,7 +73,7 @@ class TelnetConnect:
         self.auth_file = auth_file
         self.auth_group = auth_group
 
-        if self.auth_mode.lower() == 'default' or self.auth_mode.lower() == 'group':
+        if self.auth_mode.lower() == 'group':
             try:
                 with open(self.auth_file, 'r') as file:
                     auth_dict = yaml.safe_load(file)
@@ -125,7 +125,8 @@ class TelnetConnect:
                     auth_dict = yaml.safe_load(file)
                 self.login = auth_dict['MIXED']['login']
                 self.password = auth_dict['MIXED']['password']
-                self.privilege_mode_password = privilege_mode_password if privilege_mode_password else 'enable'
+                self.privilege_mode_password = auth_dict['MIXED']['privilege_mode_password'] if auth_dict['MIXED'].get(
+                    'privilege_mode_password') else 'enable'
 
             except Exception:
                 pass
@@ -276,13 +277,16 @@ class TelnetConnect:
                 for line in self.raw_interfaces
             ]
         if 'huawei' in self.vendor:
-            self.raw_interfaces, self.vendor = huawei.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = huawei.show_interfaces(telnet_session=self.telnet_session)
             self.interfaces = [
                 {'Interface': line[0], 'Port Status': line[1], 'Description': line[2]}
                 for line in self.raw_interfaces
             ]
         if 'zte' in self.vendor:
-            self.raw_interfaces = zte.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = zte.show_interfaces(
+                telnet_session=self.telnet_session,
+                privilege_mode_password=self.privilege_mode_password
+            )
             self.interfaces = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
@@ -332,7 +336,10 @@ class TelnetConnect:
         if 'd-link' in self.vendor:
             self.device_info = d_link.show_device_info(telnet_session=self.telnet_session)
         if 'huawei' in self.vendor:
-            self.device_info = huawei.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = huawei.show_device_info(
+                telnet_session=self.telnet_session,
+                privilege_mode_password=self.privilege_mode_password
+            )
         if 'zte' in self.vendor:
             self.device_info = zte.show_device_info(telnet_session=self.telnet_session)
         if 'alcatel' in self.vendor or 'lynksys' in self.vendor:
@@ -361,20 +368,16 @@ class TelnetConnect:
             self.mac_last_result = cisco.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
         if 'd-link' in self.vendor:
             self.mac_last_result = d_link.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
-        if 'huawei-1' in self.vendor:
-            self.mac_last_result = huawei.show_mac_huawei_1(self.telnet_session, self.raw_interfaces,
-                                                            description_filter)
-        if 'huawei-2' in self.vendor:
-            self.mac_last_result = huawei.show_mac_huawei_2(self.telnet_session, self.raw_interfaces,
-                                                            description_filter)
+        if 'huawei' in self.vendor:
+            self.mac_last_result = huawei.show_mac_huawei(self.telnet_session, self.raw_interfaces,
+                                                          description_filter, self.privilege_mode_password)
         if 'zte' in self.vendor:
             self.mac_last_result = zte.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
         if 'alcatel' in self.vendor or 'lynksys' in self.vendor:
             self.mac_last_result = "Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉"
             # self.mac_last_result = alcatel_linksys.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
         if 'edge-core' in self.vendor:
-            self.mac_last_result = "Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉"
-            # self.mac_last_result = edge_core.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = edge_core.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
         if 'eltex-mes' in self.vendor:
             self.mac_last_result = eltex.show_mac_mes(self.telnet_session, self.raw_interfaces, description_filter)
         if 'eltex-esr' in self.vendor:
@@ -410,20 +413,24 @@ class TelnetConnect:
                 for line in vlans_last_result
             ]
         if 'huawei' in self.vendor:
-            self.vlan_info, vlans_last_result = huawei.show_vlans(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = huawei.show_vlans(
+                self.telnet_session, self.raw_interfaces, self.privilege_mode_password
+            )
             self.vlans = [
                 {'Interface': line[0], 'Port Link': line[1], 'Description': line[2], "VLAN's": line[3]}
                 for line in vlans_last_result
             ]
         if 'zte' in self.vendor:
-            self.vlans_last_result = "Для данного типа оборудования просмотр VLAN'ов в данный момент недоступен 🦉"
-            # self.vlans_last_result = zte.show_vlans(self.telnet_session, self.raw_interfaces)
+            pass
         if 'alcatel' in self.vendor or 'lynksys' in self.vendor:
-            self.vlans_last_result = "Для данного типа оборудования просмотр VLAN'ов в данный момент недоступен 🦉"
-            # self.vlans_last_result = alcatel_linksys.show_vlans(self.telnet_session, self.raw_interfaces)
+            pass
         if 'edge-core' in self.vendor:
-            self.vlans_last_result = "Для данного типа оборудования просмотр VLAN'ов в данный момент недоступен 🦉"
-            # self.vlans_last_result = edge_core.show_vlans(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = edge_core.show_vlan(self.telnet_session, self.raw_interfaces)
+            self.vlans = [
+                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
+                 "VLAN's": line[4]}
+                for line in vlans_last_result
+            ]
         if 'eltex' in self.vendor:
             self.vlan_info, vlans_last_result = eltex.show_vlans(self.telnet_session, self.raw_interfaces)
             self.vlans = [
@@ -439,8 +446,11 @@ class TelnetConnect:
                 for line in vlans_last_result
             ]
         if 'q-tech' in self.vendor:
-            self.vlans_last_result = "Для данного типа оборудования просмотр VLAN'ов в данный момент недоступен 🦉"
-            # self.vlans_last_result = qtech.show_vlans(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = qtech.show_vlan(self.telnet_session, self.raw_interfaces)
+            self.vlans = [
+                {'Interface': line[0], 'Admin Status': line[1], 'Description': line[2], "VLAN's": line[3]}
+                for line in vlans_last_result
+            ]
         self.collect_data(
             mode='vlans',
             data={
@@ -461,7 +471,10 @@ class TelnetConnect:
         if 'd-link' in self.vendor:
             self.cable_diag = d_link.show_cable_diagnostic(telnet_session=self.telnet_session)
         if 'huawei' in self.vendor:
-            self.cable_diag = huawei.show_cable_diagnostic(telnet_session=self.telnet_session)
+            self.cable_diag = huawei.show_cable_diagnostic(
+                telnet_session=self.telnet_session,
+                privilege_mode_password=self.privilege_mode_password
+            )
         self.collect_data(
             mode='cable-diag',
             data={

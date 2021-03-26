@@ -4,6 +4,9 @@ from core.tc import TelnetConnect
 
 
 class DataGather:
+    """
+    Реализует процесс сбора состояния портов и системной информации
+    """
     def __init__(self, ip, name):
         self.db = DataBase()
         self.session = TelnetConnect(ip, name)

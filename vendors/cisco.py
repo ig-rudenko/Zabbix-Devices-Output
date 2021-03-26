@@ -7,6 +7,34 @@ from core.intf_view import interface_normal_view
 root_dir = sys.path[0]
 
 
+def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
+    output = ''
+    session.sendline(command)
+    session.expect(command)
+    if next_catch:
+        session.expect(next_catch)
+    while True:
+        match = session.expect(
+            [
+                prompt,             # 0 - конец
+                "--More--",         # 1 - далее
+                pexpect.TIMEOUT     # 2
+            ]
+        )
+        page = str(session.before.decode('utf-8')).replace("[42D", '').replace(
+            "        ", '')
+        output += page.strip()
+        if match == 0:
+            break
+        elif match == 1:
+            session.send(" ")
+            output += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+    return output
+
+
 def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
 
     intf_to_check = []  # Интерфейсы для проверки
@@ -41,7 +69,14 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
                       f'    {separator_str}\n' \
                       f'Vla'
         while True:
-            match = telnet_session.expect(['Total Mac Addresses', r'#$', "--More--", pexpect.TIMEOUT])
+            match = telnet_session.expect(
+                [
+                    'Total Mac Addresses',  # 0 - найдены все MAC адреса
+                    r'#$',                  # 1 - конец
+                    "--More--",             # 2 - Далее
+                    pexpect.TIMEOUT         # 3
+                ]
+            )
             page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
                 "        ", '')
             mac_output += page.strip()
@@ -58,22 +93,10 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
 
 
 def show_interfaces(telnet_session) -> list:
-    telnet_session.sendline("show int des")
-    telnet_session.expect("show int des")
-    output = ''
-    while True:
-        match = telnet_session.expect([r'\S+#$', "--More--", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        output += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            output += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    output = send_command(
+        session=telnet_session,
+        command='show int des'
+    )
     output = sub('.+\nInterface', 'Interface', output)
     with open(f'{root_dir}/templates/int_des_cisco.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
@@ -83,95 +106,81 @@ def show_interfaces(telnet_session) -> list:
 
 
 def show_device_info(telnet_session):
-    version = ''
-    # VERSION
-    telnet_session.sendline('show version')
-    telnet_session.expect('show version')
-    while True:
-        match = telnet_session.expect([r'\S+#$', "--More--", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        version += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            version += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    version = send_command(
+        session=telnet_session,
+        command='show version'
+    )
     version = sub(r'\W+This product [\W\S]+cisco\.com\.', '', version)
     version += '\n'
 
     # ENVIRONMENT
-    telnet_session.sendline('show environment')
-    telnet_session.expect('show environment')
-    version += '   ┌──────────────────────────────────┐\n'
-    version += '   │ Температура, Питание, Охлаждение │\n'
-    version += '   └──────────────────────────────────┘\n'
-    while True:
-        m = telnet_session.expect([' --More-- ', '\S+#$'])
-        env_str = str(telnet_session.before.decode('utf-8'))
-        if 'Invalid input' in env_str:
-            version += 'Нет данных\n'
-        else:
-            version += env_str
-        if m == 0:
-            telnet_session.sendline(' ')
-        else:
-            break
+    environment = send_command(
+        session=telnet_session,
+        command='show environment'
+    )
+    if 'Invalid input' in environment:
+        environment = send_command(
+            session=telnet_session,
+            command='show env all'
+        )
+    environment = f"""
+   ┌──────────────────────────────────┐
+   │ Температура, Питание, Охлаждение │
+   └──────────────────────────────────┘
+{environment}
+"""
+    if 'Invalid input' in environment:
+        environment = ''
+    version += environment
 
     # INVENTORY
-    telnet_session.sendline('show inventory oid')
-    telnet_session.expect('show inventory oid')
-    version += '   ┌────────────────┐\n'
-    version += '   │ Инвентаризация │\n'
-    version += '   └────────────────┘\n'
-    while True:
-        m = telnet_session.expect([' --More-- ', '\S+#$', 'Invalid input|% No entity'])
-        version += str(telnet_session.before.decode('utf-8'))
-        if m == 0:
-            telnet_session.sendline(' ')
-        elif m == 2:    # Если нет ключа "oid"
-            telnet_session.sendline('show inventory')
-            telnet_session.expect('show inventory')
-        else:
-            break
+    inventory = send_command(
+            session=telnet_session,
+            command='show inventory oid'
+        )
+    if findall(r'Invalid input|% No entity', inventory):
+        inventory = send_command(
+            session=telnet_session,
+            command='show inventory'
+        )
+    inventory = f"""
+    ┌────────────────┐
+    │ Инвентаризация │
+    └────────────────┘
+{inventory}
+"""
+    if findall(r'Invalid input|% No entity', inventory):
+        inventory = ''
+    version += inventory
 
     # SNMP
-    telnet_session.sendline('show snmp')
-    telnet_session.expect('show snmp')
-    telnet_session.expect('\S+#$')
-    version += '   ┌──────┐\n'
-    version += '   │ SNMP │\n'
-    version += '   └──────┘\n'
-    version += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "        ", '')
-
+    snmp_info = send_command(
+            session=telnet_session,
+            command='show snmp'
+        )
+    version += f"""
+    ┌──────┐
+    │ SNMP │
+    └──────┘
+{snmp_info}
+"""
     # IDPROMs
-    telnet_session.sendline('show idprom all')
-    telnet_session.expect('show idprom all')
-    tech_info = '\n' \
-                ' ┌                                    ┐\n' \
-                ' │ Расширенная техническая информация │\n' \
-                ' └                                    ┘\n' \
-                '                   ▼\n\n'
-    while True:
-        match = telnet_session.expect([r'\S+#$', "--More--", '% Invalid input', pexpect.TIMEOUT])
-        if match == 2:
-            tech_info = ''
-            break
-        tech_info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '').strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            tech_info += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
-    version += tech_info
+    extended_tech_info = send_command(
+            session=telnet_session,
+            command='show idprom all'
+        )
+
+    extended_tech_info = f"""
+    ┌                                    ┐
+    │ Расширенная техническая информация │
+    └                                    ┘
+                      ▼
+{extended_tech_info}
+    """
+    if '% Invalid input' in extended_tech_info:
+        extended_tech_info = ''
+    version += extended_tech_info
+
     return version
 
 
@@ -179,22 +188,11 @@ def show_vlans(telnet_session, interfaces) -> tuple:
     result = []
     for line in interfaces:
         if not line[0].startswith('V'):
-            telnet_session.sendline(f"show running-config interface {interface_normal_view(line[0])}")
-            telnet_session.expect("Building configuration..")
-            output = ''
-            while True:
-                match = telnet_session.expect([r'\S+#$', "--More--", pexpect.TIMEOUT])
-                page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-                    "        ", '')
-                output += page.strip()
-                if match == 0:
-                    break
-                elif match == 1:
-                    telnet_session.send(" ")
-                    output += '\n'
-                else:
-                    print("    Ошибка: timeout")
-                    break
+            output = send_command(
+                session=telnet_session,
+                command=f"show running-config interface {interface_normal_view(line[0])}",
+                next_catch="Building configuration.."
+            )
             vlans_group = findall(r'vlan [add ]*(\S*\d)', output)   # Строчки вланов
             switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode
             max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
@@ -211,22 +209,10 @@ def show_vlans(telnet_session, interfaces) -> tuple:
 
             result.append(line + [vlans_compact_str])
 
-    telnet_session.sendline(f"show vlan brief")
-    telnet_session.expect("show vlan brief")
-    vlans_info = ''
-    while True:
-        match = telnet_session.expect([r'\S+#$', "--More--", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        vlans_info += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            vlans_info += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    vlans_info = send_command(
+        session=telnet_session,
+        command='show vlan brief'
+    )
     with open(f'{root_dir}/templates/vlans_templates/cisco_vlan_info.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)
         vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы

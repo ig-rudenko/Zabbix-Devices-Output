@@ -7,22 +7,36 @@ from core.intf_view import interface_normal_view
 root_dir = sys.path[0]
 
 
-def show_interfaces(telnet_session) -> list:
-    telnet_session.sendline('enable')
-    telnet_session.expect('[Pp]ass')
-    telnet_session.sendline('sevaccess')
-    telnet_session.expect('#')
+def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
+    telnet_session.sendline('\n')
+    level = telnet_session.expect(
+        [
+            r'\(cfg\)#$',   # 0 - привилегированный режим
+            r'>$'           # 1 - режим просмотра
+        ]
+    )
+    if level:
+        telnet_session.sendline('enable')
+        telnet_session.expect('[Pp]ass')
+        telnet_session.sendline(privilege_mode_password)
+        telnet_session.expect(r'\(cfg\)#$')
     telnet_session.sendline('show port')
     output = ''
     while True:
-        match = telnet_session.expect([r'#$', "----- more -----", pexpect.TIMEOUT])
+        match = telnet_session.expect(
+            [
+                r'\(cfg\)#$',           # 0 - конец списка
+                "----- more -----",     # 1 - продолжаем
+                pexpect.TIMEOUT         # 2
+            ]
+        )
         page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
             "        ", '')
         output += page.strip()
         if match == 0:
             break
         elif match == 1:
-            telnet_session.send(" ")
+            telnet_session.send(" ")    # отправляем символ пробела, без '\n'
             output += '\n'
         else:
             print("    Ошибка: timeout")
@@ -61,7 +75,12 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str):
         telnet_session.expect('detail')
         mc_output = ''
         while True:
-            match = telnet_session.expect([r'#$', "----- more -----", pexpect.TIMEOUT])
+            match = telnet_session.expect(
+                [
+                    r'\(cfg\)#$|>$',        # 0 - конец списка
+                    "----- more -----",     # 1 - далее
+                    pexpect.TIMEOUT]        # 2
+            )
             page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
                 "        ", '')
             mc_output += page.strip()
@@ -84,4 +103,34 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str):
 
 
 def show_device_info(telnet_session):
-    pass
+
+    def send_command(command: str):
+        telnet_session.sendline(command)
+        telnet_session.expect(command)
+        telnet_session.expect(r'\S+\(cfg\)#$|\S+>$')
+        return telnet_session.before.decode('utf-8').strip()
+
+    device_info = f"""
+    {send_command('show version')}
+       ┌──────────────┐
+       │ Загрузка CPU │
+       └──────────────┘
+    {send_command('show cpu')}
+       ┌──────────────┐
+       │  Охлаждение  │
+       └──────────────┘
+    {send_command('show fan')}
+       ┌──────────────┐
+       │   Сервисы    │
+       └──────────────┘
+    {send_command('show ssh')}
+
+    {send_command('show web')}
+
+    {send_command('show anti-DoS')}
+       ┌──────────────┐
+       │ USERS ONLINE │
+       └──────────────┘
+    {send_command('show user')}
+    """
+    return device_info

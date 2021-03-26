@@ -13,24 +13,24 @@
 
 | VENDOR  | interfaces | MAC | sys-info | vlans | cable-diag |
 | :----:|:----:|:---:|:----:|:----:|:----:|
-| Cisco     | ✅ | ✅ | ✅ | ✅ |  |
+| Cisco     | ✅ | ✅ | ✅ | ✅ | - |
 | Huawei    | ✅ | ✅ | ✅ | ✅ | ✅ |
 | D-Link    | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Eltex     | ✅ | ✅ | ✅ | ✅ |  |
-| Edge-Core | ✅ |   | ✅ |   |   |
-| Extreme   | ✅ |   | ✅ | ✅ |   |
-| Q-Tech    | ✅ | ✅ | ✅ |   |   |
-| ZTE       | ✅ | ✅ |   |   |   |
-| Alcatel   | ✅ |   |   |   |   |
-| Lynksys   | ✅ |   |   |   |   |
+| Eltex     | ✅ | ✅ | ✅ | ✅ | -|
+| Edge-Core | ✅ | ✅ | ✅ | ✅ | - |
+| Extreme   | ✅ | ✅ | ✅ | ✅ | - |
+| Q-Tech    | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ZTE       | ✅ | ✅ | - | - | - |
+| Alcatel   | ✅ | - | - | - | - |
+| Lynksys   | ✅ | - | - | - | - |
 
 ## Рассмотрим работу на примере
 
 ```python
 
-from core import tc
+from core.tc import TelnetConnect
 
-session = tc.TelnetConnect(ip='192.168.0.10', device_name='device')
+session = TelnetConnect(ip='192.168.0.10', device_name='device')
 ```
 - **ip** - обязательный параметр
 - **device_name** - опциональный (по умолчанию пустая строка)
@@ -149,7 +149,7 @@ session.connect()
 #### Пример работы программы
     
 
-    $ ./telnet_control/device_control.py -N device_name -m показать_интерфейсы 192.168.1.10
+    $ ./telnet_control/device_control.py  -N device_name -i 192.168.1.10 -m show-interfaces
         
         Подключаемся к device_name (192.168.1.10)
     

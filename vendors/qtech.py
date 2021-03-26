@@ -7,6 +7,34 @@ from core.intf_view import interface_normal_view
 root_dir = sys.path[0]
 
 
+def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
+    output = ''
+    session.sendline(command)
+    session.expect(command)
+    if next_catch:
+        session.expect(next_catch)
+    while True:
+        match = session.expect(
+            [
+                prompt,
+                "--More--",
+                pexpect.TIMEOUT
+            ]
+        )
+        page = str(session.before.decode('utf-8')).replace("[42D", '').replace(
+            "        ", '')
+        output += page.strip()
+        if match == 0:
+            break
+        elif match == 1:
+            session.send(" ")
+            output += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+    return output
+
+
 def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
 
     intf_to_check = []  # Интерфейсы для проверки
@@ -55,22 +83,11 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
 
 
 def show_interfaces(telnet_session) -> list:
-    telnet_session.sendline("show interface ethernet status")
-    output = ''
-    while True:
-        match = telnet_session.expect([r'[#>]$', "--More--", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        output += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            output += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
-    output = sub('[\W\S]+\nInterface', '\nInterface', output)
+    output = send_command(
+        session=telnet_session,
+        command='show interface ethernet status'
+    )
+    output = sub(r'[\W\S]+\nInterface', '\nInterface', output)
     with open(f'{root_dir}/templates/int_des_q-tech.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
@@ -80,35 +97,71 @@ def show_interfaces(telnet_session) -> list:
 def show_device_info(telnet_session):
     info = ''
     # VERSION
-    telnet_session.sendline('show version')
-    telnet_session.expect('show version')
-    telnet_session.expect('\S+#')
-    info += str(telnet_session.before.decode('utf-8'))
+    info += send_command(
+        session=telnet_session,
+        command='show version'
+    )
 
     # TEMPERATURE
-    telnet_session.sendline('show temperature')
-    telnet_session.expect('show temperature')
-    telnet_session.expect('\S+#')
     info += '   ┌─────────────┐\n'
     info += '   │ Температура │\n'
     info += '   └─────────────┘\n'
-    info += str(telnet_session.before.decode('utf-8'))
+    info += send_command(
+        session=telnet_session,
+        command='show temperature'
+    )
 
     # FANS
-    telnet_session.sendline('show fan')
-    telnet_session.expect('show fan')
-    telnet_session.expect('\S+#')
     info += '   ┌──────┐\n'
     info += '   │ FANS │\n'
     info += '   └──────┘\n'
-    info += str(telnet_session.before.decode('utf-8'))
+    info += send_command(
+        session=telnet_session,
+        command='show fan'
+    )
 
     # SNMP
-    telnet_session.sendline('show snmp status')
-    telnet_session.expect('show snmp status')
-    telnet_session.expect('\S+#')
     info += '   ┌──────┐\n'
     info += '   │ SNMP │\n'
     info += '   └──────┘\n'
-    info += str(telnet_session.before.decode('utf-8'))
+    info += send_command(
+        session=telnet_session,
+        command='show snmp status'
+    )
+
     return info
+
+
+def show_vlan(telnet_session, interfaces):
+    result = []
+    for line in interfaces:
+        if not line[0].startswith('V'):
+            output = send_command(
+                session=telnet_session,
+                command=f"show running-config interface ethernet {line[0]}"
+            )
+            vlans_group = findall(r'vlan [add ]*(\S*\d)', output)  # Строчки вланов
+            switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode
+            max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+            vlans_compact_str = ''  # Строка со списком VLANов с переносами
+            line_str = ''
+            for part in set(';'.join(switchport_mode + vlans_group).split(';')):
+                if len(line_str) + len(part) <= max_letters_in_string:
+                    line_str += f'{part},'
+                else:
+                    vlans_compact_str += f'{line_str}\n'
+                    line_str = f'{part},'
+            else:
+                vlans_compact_str += line_str[:-1]
+
+            result.append(line + [vlans_compact_str])
+
+    vlans_info = send_command(
+        session=telnet_session,
+        command='show vlan'
+    )
+    with open(f'{root_dir}/templates/vlans_templates/q-tech.template', 'r') as template_file:
+        vlans_info_template = textfsm.TextFSM(template_file)
+        vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы
+
+    return vlans_info_table, result

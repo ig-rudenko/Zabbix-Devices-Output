@@ -1,9 +1,37 @@
 import pexpect
-from re import findall
+from re import findall, sub
 import sys
 from core import textfsm
 
 root_dir = sys.path[0]
+
+
+def send_command(session, command: str, prompt: str = r'\S+\s*#\s*$', next_catch: str = None) -> str:
+    output = ''
+    session.sendline(command)
+    session.expect(command)
+    if next_catch:
+        session.expect(next_catch)
+    while True:
+        match = session.expect(
+            [
+                prompt,
+                "Press <SPACE> to continue or <Q> to quit:",
+                pexpect.TIMEOUT
+            ]
+        )
+        output += str(session.before.decode('utf-8')).replace("[42D", '').replace(
+            "\x1b[m\x1b[60;D\x1b[K", '')
+        # output += page.split('Flags : ')[0].strip()
+        if match == 0:
+            break
+        elif match == 1:
+            session.send(" ")
+            output += '\n'
+        else:
+            print("    Ошибка: timeout")
+            break
+    return output
 
 
 def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
@@ -31,45 +59,26 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
                    f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
     for intf in intf_to_check:  # для каждого интерфейса
-        telnet_session.sendline(f'show fdb ports {intf[0]}')
-        telnet_session.expect(f'show fdb ports {intf[0]}')
         separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
-        mac_output += f'\n    Интерфейс: {intf[0]} ({intf[1]})\n'\
+        mac_output += f'\n\n    Интерфейс: {intf[0]} ({intf[1]})\n' \
                       f'    {separator_str}\n'
-        while True:
-            match = telnet_session.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
-            page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-                "\x1b[m\x1b[60;D\x1b[K", '')
-            mac_output += page.split('Flags : ')[0].strip()
-            if match == 0:
-                break
-            elif match == 1:
-                telnet_session.send(" ")
-                mac_output += '\n'
-            else:
-                print("    Ошибка: timeout")
-                break
-        mac_output += '\n\n'
+
+        mac_output_ = send_command(
+            session=telnet_session,
+            command=f'show fdb ports {intf[0]}'
+        )
+        cut = mac_output_.find('Flags : d -')
+        mac_output += mac_output_[:cut]
+
     return mac_output
 
 
 def show_interfaces(telnet_session) -> list:
     # LINKS
-    telnet_session.sendline('show ports information')
-    output_links = ''
-    while True:
-        match = telnet_session.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "\x1b[m\x1b[60;D\x1b[K", '')
-        output_links += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            output_links += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    output_links = send_command(
+        session=telnet_session,
+        command='show ports information'
+    )
     with open(f'{root_dir}/templates/int_des_extreme_links.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_state = int_des_.ParseText(output_links)  # Ищем интерфейсы
@@ -82,21 +91,11 @@ def show_interfaces(telnet_session) -> list:
             result_port_state[position][1] = 'None'
 
     # DESC
-    telnet_session.sendline('show ports description')
-    output_des = ''
-    while True:
-        match = telnet_session.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "\x1b[m\x1b[60;D\x1b[K", '')
-        output_des += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            output_des += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    output_des = send_command(
+        session=telnet_session,
+        command='show ports description'
+    )
+
     with open(f'{root_dir}/templates/int_des_extreme_des.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_des = int_des_.ParseText(output_des)  # Ищем desc
@@ -109,53 +108,42 @@ def show_device_info(telnet_session):
     info = '\n'
 
     # VERSION
-    telnet_session.sendline('show switch detail')
-    telnet_session.expect('show switch detail\W+')
-    while True:
-        match = telnet_session.expect([r'\S+\s*#\s*', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
-        info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "\x1b[m\x1b[60;D\x1b[K", '').strip()
-        if match == 1:
-            telnet_session.send(" ")
-            info += '\n'
-        else:
-            info += '\n'
-            break
-    telnet_session.sendline('show version detail')
-    telnet_session.expect('show version detail\W+')
-    telnet_session.expect('\S+\s*#\s*')
-    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "\x1b[m\x1b[60;D\x1b[K", '')
+    info += send_command(
+        session=telnet_session,
+        command='show switch detail'
+    )
 
-    # FANS
-    telnet_session.sendline('show fans detail')
-    telnet_session.expect('show fans detail\W+')
-    telnet_session.expect('\S+\s*#\s*')
+    info += send_command(
+        session=telnet_session,
+        command='show version detail'
+    )
+
     info += '           ┌────────────┐\n' \
             '           │ Охлаждение │\n' \
             '           └────────────┘\n'
-    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "\x1b[m\x1b[60;D\x1b[K", '')
+
+    info += send_command(
+        session=telnet_session,
+        command='show fans detail'
+    )
 
     # TEMPERATURE
-    telnet_session.sendline('show temperature')
-    telnet_session.expect('show temperature\W+')
-    telnet_session.expect('\S+\s*#\s*')
     info += '           ┌─────────────┐\n' \
             '           │ Температура │\n' \
             '           └─────────────┘\n'
-    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "\x1b[m\x1b[60;D\x1b[K", '')
+    info += send_command(
+        session=telnet_session,
+        command='show temperature'
+    )
 
     # POWER
-    telnet_session.sendline('show power')
-    telnet_session.expect('show power\W+')
-    telnet_session.expect('\S+\s*#\s*')
     info += '           ┌─────────┐\n' \
             '           │ Питание │\n' \
             '           └─────────┘\n'
-    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "\x1b[m\x1b[60;D\x1b[K", '')
+    info += send_command(
+        session=telnet_session,
+        command='show power'
+    )
 
     info += ' ┌                                    ┐\n' \
             ' │ Расширенная техническая информация │\n' \
@@ -164,24 +152,19 @@ def show_device_info(telnet_session):
             '           ┌───────────────┐\n' \
             '           │ Platform Info │\n' \
             '           └───────────────┘\n'
-
     # PLATFORM INFORMATION
-    telnet_session.sendline('debug hal show platform platformInfo')
-    telnet_session.expect('debug hal show platform platformInfo')
-    telnet_session.expect('\S+\s*#\s*$')
-
-    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "\x1b[m\x1b[60;D\x1b[K", '')
-
+    info += send_command(
+        session=telnet_session,
+        command='debug hal show platform platformInfo'
+    )
     # SLOTS
-    telnet_session.sendline('debug hal show platform deviceInfo')
-    telnet_session.expect('debug hal show platform deviceInfo')
-    telnet_session.expect('\S+\s*#\s*$')
     info += '           ┌───────┐\n' \
             '           │ Слоты │\n' \
             '           └───────┘\n'
-    info += str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-        "\x1b[m\x1b[60;D\x1b[K", '')
+    info += send_command(
+        session=telnet_session,
+        command='debug hal show platform deviceInfo'
+    )
     return info
 
 
@@ -200,23 +183,12 @@ def show_vlans(telnet_session, interfaces: list):
 
         return sorted(res_ports)
 
-    telnet_session.sendline(f'show configuration "vlan"')
-    telnet_session.expect('Module vlan configuration.')
-    telnet_session.expect('#')
-    output_vlans = ''
-    while True:
-        match = telnet_session.expect([r'# ', "Press <SPACE> to continue or <Q> to quit:", pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-            "\x1b[m\x1b[60;D\x1b[K", '')
-        output_vlans += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            telnet_session.send(" ")
-            output_vlans += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+    output_vlans = send_command(
+        session=telnet_session,
+        command='show configuration "vlan"',
+        next_catch=r'Module vlan configuration\.'
+    )
+
     with open(f'{root_dir}/templates/vlans_templates/extreme.template', 'r') as template_file:
         vlan_templ = textfsm.TextFSM(template_file)
         result_vlans = vlan_templ.ParseText(output_vlans)
