@@ -6,13 +6,46 @@ from core.intf_view import interface_normal_view
 root_dir = sys.path[0]
 
 
-def show_interfaces(telnet_session) -> list:
-    telnet_session.sendline('enable admin')
-    if telnet_session.expect(["#", "[Pp]ass"]):
-        telnet_session.sendline('sevaccess')
-        telnet_session.expect('#')
-    telnet_session.sendline('disable clipaging')
-    telnet_session.expect('#')
+def send_command(session, command: str, privilege_mode_password: str, prompt: str = r'\S+#', next_catch: str = None):
+    if not enable_admin(session, privilege_mode_password):
+        return ''
+    session.sendline(command)
+    session.expect(command)
+    if next_catch:
+        session.expect(next_catch)
+    session.expect(prompt)
+    return session.before.decode('utf-8')
+
+
+def enable_admin(session, privilege_mode_password: str) -> bool:
+    """
+    Повышает уровень привилегий до уровня администратора
+    :param session: TELNET Сессия
+    :param privilege_mode_password: пароль от уровня администратора
+    :return: True/False
+    """
+    status = True
+    session.sendline('enable admin')
+    if not session.expect(
+        [
+            "[Pp]ass",           # 0 - ввод пароля
+            r"You already have"  # 1 - уже администратор
+        ]
+    ):
+        session.sendline(privilege_mode_password)
+    while session.expect(['#', 'Fail!']):
+        session.sendline('\n')
+        print('privilege_mode_password wrong!')
+        status = False
+    if status:
+        session.sendline('disable clipaging')   # отключение режима постраничного вывода
+        session.expect('#')
+    return status
+
+
+def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
+    if not enable_admin(telnet_session, privilege_mode_password):
+        return []
     telnet_session.sendline("show ports des")
     telnet_session.expect('#')
     output = telnet_session.before.decode('utf-8')
@@ -57,14 +90,10 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
     return mac_output
 
 
-def show_device_info(telnet_session):
+def show_device_info(telnet_session, privilege_mode_password: str):
     info = ''
-    telnet_session.sendline('enable admin')
-    if telnet_session.expect(["#", "[Pp]ass"]):
-        telnet_session.sendline('sevaccess')
-        telnet_session.expect('#')
-    telnet_session.sendline('disable clipaging')
-    telnet_session.expect('#')
+    if not enable_admin(telnet_session, privilege_mode_password):
+        return
 
     # VERSION
     telnet_session.sendline('show switch')
@@ -84,14 +113,9 @@ def show_device_info(telnet_session):
     return info
 
 
-def show_cable_diagnostic(telnet_session):
+def show_cable_diagnostic(telnet_session, privilege_mode_password: str):
     info = ''
-    telnet_session.sendline('enable admin')
-    if telnet_session.expect(["#", "[Pp]ass"]):
-        telnet_session.sendline('sevaccess')
-        telnet_session.expect('#')
-    telnet_session.sendline('disable clipaging')
-    telnet_session.expect('#')
+    enable_admin(telnet_session, privilege_mode_password)
 
     # CABLE_DIAGNOSTIC
     telnet_session.sendline('cable_diag ports all')
@@ -112,7 +136,7 @@ def show_cable_diagnostic(telnet_session):
     return info
 
 
-def show_vlans(telnet_session, interfaces: list) -> tuple:
+def show_vlans(telnet_session, interfaces: list, privilege_mode_password: str) -> tuple:
 
     def range_to_numbers(ports_string: str) -> list:
         ports_split = ports_string.split(',')
@@ -127,12 +151,7 @@ def show_vlans(telnet_session, interfaces: list) -> tuple:
 
         return sorted(res_ports)
 
-    telnet_session.sendline('enable admin')
-    if telnet_session.expect(["#", "[Pp]ass"]):
-        telnet_session.sendline('sevaccess')
-        telnet_session.expect('#')
-    telnet_session.sendline('disable clipaging')
-    telnet_session.expect('#')
+    enable_admin(telnet_session, privilege_mode_password)
     telnet_session.sendline('show vlan')
     telnet_session.expect('#', timeout=20)
     output = telnet_session.before.decode('utf-8')

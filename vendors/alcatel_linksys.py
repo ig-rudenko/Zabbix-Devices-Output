@@ -5,62 +5,57 @@ from core import textfsm
 root_dir = sys.path[0]
 
 
-def show_interfaces(telnet_session) -> list:
-    telnet_session.sendline('show interfaces configuration')
-    port_state = ''
+def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: str = None):
+    session.sendline(command)
+    session.expect(command)
+    if next_catch:
+        session.expect(next_catch)
+    output = ''
     while True:
-        match = telnet_session.expect(['More: <space>', '#', pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8'))
-        port_state += page.strip()
+        match = session.expect(
+            [
+                r'More: <space>,  Quit: q, One line: <return> ',
+                prompt,
+                pexpect.TIMEOUT
+            ]
+        )
+        output += session.before.decode('utf-8').strip()
         if match == 0:
-            telnet_session.sendline(' ')
+            session.send(' ')
         elif match == 1:
             break
         else:
             print("    Ошибка: timeout")
             break
+    return output
 
+
+def show_interfaces(telnet_session) -> list:
+    port_state = send_command(
+        session=telnet_session,
+        command='show interfaces configuration'
+    )
     # Description
     with open(f'{root_dir}/templates/int_des_alcatel_linksys.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_state = int_des_.ParseText(port_state)  # Ищем интерфейсы
-    telnet_session.sendline('show int des')
-    telnet_session.expect('#')
-    port_desc = ''
-    while True:
-        match = telnet_session.expect(['More: <space>', '#', pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8'))
-        port_desc += page.strip()
-        if match == 0:
-            telnet_session.sendline(' ')
-        elif match == 1:
-            break
-        else:
-            print("    Ошибка: timeout")
-            break
+
+    port_desc = send_command(
+        session=telnet_session,
+        command='show interfaces description'
+    )
     with open(f'{root_dir}/templates/int_des_alcatel_linksys2.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_des = int_des_.ParseText(port_desc)  # Ищем интерфейсы
 
     # Ищем состояние порта
-    telnet_session.sendline('show int status')
-    telnet_session.expect('#')
-    port_desc = ''
-    while True:
-        match = telnet_session.expect(['More: <space>', '#', pexpect.TIMEOUT])
-        page = str(telnet_session.before.decode('utf-8'))
-        port_desc += page.strip()
-        if match == 0:
-            telnet_session.sendline(' ')
-        elif match == 1:
-            telnet_session.sendline('exit')
-            break
-        else:
-            print("    Ошибка: timeout")
-            break
+    port_status = send_command(
+        session=telnet_session,
+        command='show interfaces status'
+    )
     with open(f'{root_dir}/templates/int_des_alcatel_linksys_link.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
-        result_port_link = int_des_.ParseText(port_desc)  # Ищем интерфейсы
+        result_port_link = int_des_.ParseText(port_status)  # Ищем интерфейсы
 
     result = []
     for postition, line in enumerate(result_port_state):
@@ -73,7 +68,19 @@ def show_interfaces(telnet_session) -> list:
 
 def show_device_info(telnet_session):
     info = ''
-    telnet_session.sendline('show system')
-    telnet_session.expect('show system')
-
+    info += send_command(
+        session=telnet_session,
+        command='show system'
+    )
+    info += '''
+    ┌──────────────┐
+    │ ЗАГРУЗКА CPU │
+    └──────────────┘
+'''
+    info += send_command(
+        session=telnet_session,
+        command='show cpu utilization'
+    )
     return info
+
+

@@ -33,7 +33,7 @@ def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: s
     return output
 
 
-def show_interfaces(telnet_session, eltex_type: str = 'mes') -> str:
+def show_interfaces(telnet_session, eltex_type: str = 'eltex-mes') -> str:
     telnet_session.sendline("show int des")
     telnet_session.expect("show int des")
     output = ''
@@ -73,7 +73,7 @@ def show_mac_esr_12vf(telnet_session) -> str:
     return mac_output
 
 
-def show_mac_mes(telnet_session, interfaces: list, interface_filter: str) -> str:
+def show_mac(telnet_session, interfaces: list, interface_filter: str, eltex_type: str = 'eltex-mes') -> str:
     intf_to_check = []  # Интерфейсы для проверки
     mac_output = ''  # Вывод MAC
     not_uplinks = True if interface_filter == 'only-abonents' else False
@@ -97,34 +97,44 @@ def show_mac_mes(telnet_session, interfaces: list, interface_filter: str) -> str
                    f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
     for intf in intf_to_check:  # для каждого интерфейса
-        telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
         separator_str = '─' * len(f'Интерфейс: {intf[1]}')
         mac_output += f'\n    Интерфейс: {intf[1]}\n    {separator_str}\n'
-        telnet_session.expect(r'Aging time is \d+ \S+')
-        while True:
-            match = telnet_session.expect(
-                [
-                    r'\S+#\s*$',
-                    r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> ",
-                    pexpect.TIMEOUT
-                ]
+
+        if 'eltex-mes' in eltex_type:
+            telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
+            telnet_session.expect(r'Aging time is \d+ \S+')
+            while True:
+                match = telnet_session.expect(
+                    [
+                        r'\S+#\s*$',
+                        r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> ",
+                        pexpect.TIMEOUT
+                    ]
+                )
+                page = telnet_session.before.decode('utf-8')
+                mac_output += f"    {page.strip()}"
+                if match == 0:
+                    break
+                elif match == 1:
+                    telnet_session.send(" ")
+                else:
+                    print("    Ошибка: timeout")
+                    break
+            mac_output = sub(r'(?<=\d)(?=\S\S:\S\S:\S\S:\S\S:\S\S:\S\S)', r'     ', mac_output)
+            mac_output = sub(r'Vlan\s+Mac\s+Address\s+Port\s+Type',
+                             'Vlan          Mac_Address         Port       Type',
+                             mac_output)
+            mac_output += '\n'
+
+        if 'eltex-esr' in eltex_type:
+            mac_output += "VID     MAC Address          Interface                        Type \n" \
+                          "-----   ------------------   ------------------------------   -------"
+            mac_output += send_command(
+                session=telnet_session,
+                command=f'show mac address-table interface {interface_normal_view(intf[0])} |'
+                        f' include \"{interface_normal_view(intf[0]).lower()}\"'
             )
-            page = telnet_session.before.decode('utf-8')
-            mac_output += f"    {page.strip()}"
-            if match == 0:
-                break
-            elif match == 1:
-                # telnet_session.expect('<return>')
-                telnet_session.send(" ")
-            else:
-                print("    Ошибка: timeout")
-                break
-        # mac_output = sub('SVSL.+', '', mac_output)
-        mac_output = sub(r'(?<=\d)(?=\S\S:\S\S:\S\S:\S\S:\S\S:\S\S)', r'     ', mac_output)
-        mac_output = sub(r'Vlan\s+Mac\s+Address\s+Port\s+Type',
-                         'Vlan          Mac_Address         Port       Type',
-                         mac_output)
-        mac_output += '\n'
+
     return mac_output
 
 

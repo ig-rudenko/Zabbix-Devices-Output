@@ -29,9 +29,9 @@ class DataGather:
 
         if mode == 'interfaces':
             if self.session.get_interfaces():
-                print(f'Interfaces collected! {self.session.device_name} ({self.session.ip})')
+                print(f'Interfaces collected! {self.session.device["name"]} ({self.session.device["ip"]})')
         elif mode == 'sys-info':
             if self.session.get_device_info():
-                print(f'System information collected! {self.session.device_name} ({self.session.ip})')
+                print(f'System information collected! {self.session.device["name"]} ({self.session.device["ip"]})')
         else:
             return 0

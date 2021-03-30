@@ -95,14 +95,23 @@ def show_mac_huawei(telnet_session, interfaces: list, interface_filter: str, pri
     return mac_output
 
 
-def show_interfaces(telnet_session) -> list:
+def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
     """
         Обнаруживаем интерфейсы на коммутаторе типа Huawei
-    :param telnet_session:  залогиненная сессия
-    :return:                Кортеж (список интерфейсов, тип huawei)
+    :param telnet_session:              залогиненная сессия
+    :param privilege_mode_password:     пароль от привилегированного режима
+    :return:                            Кортеж (список интерфейсов, тип huawei)
     """
-
-    telnet_session.sendline('\n')
+    telnet_session.sendline('super')
+    v = telnet_session.expect(
+        [
+            'Unrecognized command',     # 0 - huawei-2326
+            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
+            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
+        ]
+    )
+    if v == 1:
+        telnet_session.sendline(privilege_mode_password)
     if telnet_session.expect(
             [
                 r'<\S+>$',   # 0

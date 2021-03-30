@@ -36,24 +36,24 @@ def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None
             os.path.exists(f'{root_dir}/data/{device_name}/vlans_info.yaml'):
         print('Последние сохраненные данные:\n')
         with open(f'{root_dir}/data/{device_name}/vlans.yaml', 'r') as file:
-            print(tabulate(yaml.safe_load(file), headers='keys', tablefmt="fancy_grid"))
+            print(tabulate(yaml.safe_load(file)['data'], headers='keys', tablefmt="fancy_grid"))
         with open(f'{root_dir}/data/{device_name}/vlans_info.yaml', 'r') as file:
-            print(tabulate(yaml.safe_load(file), headers=['VLAN', 'Name', 'Status']))
+            print(tabulate(yaml.safe_load(file)['data'], headers=['VLAN', 'Name', 'Status']))
 
     if 'mac' in command and os.path.exists(f'{root_dir}/data/{device_name}/mac_result.yaml'):
         print('Последние сохраненные данные:\n')
         with open(f'{root_dir}/data/{device_name}/mac_result.yaml', 'r') as file:
-            print(yaml.safe_load(file))
+            print(yaml.safe_load(file)['data'])
 
     if 'cable-diagnostic' in command and os.path.exists(f'{root_dir}/data/{device_name}/cable-diag.yaml'):
         print('Последние сохраненные данные:\n')
         with open(f'{root_dir}/data/{device_name}/cable-diag.yaml', 'r') as file:
-            print(yaml.safe_load(file))
+            print(yaml.safe_load(file)['data'])
 
     if 'sys-info' in command and os.path.exists(f'{root_dir}/data/{device_name}/sys-info.yaml'):
         print('Последние сохраненные данные:\n')
         with open(f'{root_dir}/data/{device_name}/sys-info.yaml', 'r') as file:
-            print(yaml.safe_load(file))
+            print(yaml.safe_load(file)['data'])
 
 
 def show_info(device_name: str,
@@ -113,7 +113,7 @@ def show_info(device_name: str,
             return 0
 
         print(f"\n    Подключаемся к {device_name} ({device_ip})\n"
-              f"\n    Тип оборудования: {session.vendor}\n")
+              f"\n    Тип оборудования: {session.device['vendor']} {session.device['model']}\n")
 
         if 'show-interfaces' in command:
             print(tabulate(session.get_interfaces(), headers='keys', tablefmt="fancy_grid"))
@@ -158,10 +158,8 @@ if __name__ == '__main__':
 
     if args.data_gather:
         db = DataBase()
-        with ThreadPoolExecutor(max_workers=30) as executor:
-            for line in db.get_table():
-                data_gather = DataGather(ip=line[0], name=line[1])
-                executor.submit(data_gather.collect, args.data_gather)
+        for line in db.get_table():
+            DataGather(ip=line[0], name=line[1]).collect(args.data_gather)
         sys.exit()
 
     show_info(

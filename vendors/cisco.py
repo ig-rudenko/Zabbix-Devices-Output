@@ -105,7 +105,7 @@ def show_interfaces(telnet_session) -> list:
     return [line for line in result if not line[0].startswith('V')]
 
 
-def show_device_info(telnet_session):
+def get_device_info(telnet_session):
     version = send_command(
         session=telnet_session,
         command='show version'
@@ -180,6 +180,9 @@ def show_device_info(telnet_session):
     if '% Invalid input' in extended_tech_info:
         extended_tech_info = ''
     version += extended_tech_info
+
+    # mac_address = findall(r'MAC Address\s+:\s+(\S\S:\S\S:\S\S:\S\S:\S\S:\S\S)', version)
+    # serial_number = findall(r'System serial number\s+:\s+(\S+)', version)
 
     return version
 
