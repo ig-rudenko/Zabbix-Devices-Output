@@ -57,20 +57,10 @@ def show_interfaces(telnet_session, eltex_type: str = 'eltex-mes') -> str:
         else:
             print("    Ошибка: timeout")
             break
-    with open(f'{root_dir}/templates/int_des_{eltex_type}.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/{eltex_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result
-
-
-def show_mac_esr_12vf(telnet_session) -> str:
-    # Для Eltex ESR-12VF выводим всю таблицу MAC адресов
-    mac_output = ''
-    telnet_session.sendline(f'show mac address-table ')
-    telnet_session.expect(r'\S+# ')
-    m_output = sub(r'.+\nVID', 'VID', str(telnet_session.before.decode('utf-8')))
-    mac_output += f"\n{m_output}"
-    return mac_output
 
 
 def show_mac(telnet_session, interfaces: list, interface_filter: str, eltex_type: str = 'eltex-mes') -> str:

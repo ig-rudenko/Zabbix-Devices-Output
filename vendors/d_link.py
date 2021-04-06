@@ -49,7 +49,7 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
     telnet_session.sendline("show ports des")
     telnet_session.expect('#')
     output = telnet_session.before.decode('utf-8')
-    with open(f'{root_dir}/templates/int_des_d-link.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/d-link.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result

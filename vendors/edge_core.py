@@ -45,7 +45,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show interfaces status'
     )
-    with open(f'{root_dir}/templates/int_des_edge_core.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/edge_core.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_des = int_des_.ParseText(des_output)  # Ищем интерфейсы
 

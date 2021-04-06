@@ -88,7 +88,7 @@ def show_interfaces(telnet_session) -> list:
         command='show interface ethernet status'
     )
     output = sub(r'[\W\S]+\nInterface', '\nInterface', output)
-    with open(f'{root_dir}/templates/int_des_q-tech.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/q-tech.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result

@@ -41,7 +41,7 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
         else:
             print("    Ошибка: timeout")
             break
-    with open(f'{root_dir}/templates/int_des_zte.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/zte.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result

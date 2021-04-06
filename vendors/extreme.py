@@ -79,7 +79,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show ports information'
     )
-    with open(f'{root_dir}/templates/int_des_extreme_links.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/extreme_links.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_state = int_des_.ParseText(output_links)  # Ищем интерфейсы
     for position, line in enumerate(result_port_state):
@@ -96,7 +96,7 @@ def show_interfaces(telnet_session) -> list:
         command='show ports description'
     )
 
-    with open(f'{root_dir}/templates/int_des_extreme_des.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/extreme_des.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_des = int_des_.ParseText(output_des)  # Ищем desc
 

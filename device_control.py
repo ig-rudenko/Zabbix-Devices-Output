@@ -159,7 +159,10 @@ if __name__ == '__main__':
     if args.data_gather:
         db = DataBase()
         for line in db.get_table():
-            DataGather(ip=line[0], name=line[1]).collect(args.data_gather)
+            try:
+                DataGather(ip=line[0], name=line[1]).collect(args.data_gather)
+            except Exception as e:
+                print(e)
         sys.exit()
 
     show_info(

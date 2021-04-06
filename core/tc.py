@@ -162,7 +162,6 @@ class TelnetConnect:
             self.device["vendor"] = 'zte'
             model = findall(r'Module 0:\s+([\S\W]);\sfasteth', version)
 
-
         # HUAWEI
         if 'Unrecognized command' in version:
             self.device["vendor"] = 'huawei'
@@ -321,8 +320,8 @@ class TelnetConnect:
                 self.device["vendor"] = item[0][2]
 
             # Если нет записи о вендоре устройства, то определим его
-            # if not self.device["vendor"]:
-            self.device["vendor"] = self.get_device_model()
+            if not self.device["vendor"]:
+                self.device["vendor"] = self.get_device_model()
             # После того, как определили тип устройства, обновляем таблицу базы данных
             db.update(
                 ip=self.device["ip"],

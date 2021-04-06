@@ -98,7 +98,7 @@ def show_interfaces(telnet_session) -> list:
         command='show int des'
     )
     output = sub('.+\nInterface', 'Interface', output)
-    with open(f'{root_dir}/templates/int_des_cisco.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/cisco.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
 

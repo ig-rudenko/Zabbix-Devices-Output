@@ -121,7 +121,7 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
         prompt = r'\[\S+\]$'
     else:
         prompt = r'<\S+>$'
-
+    print(prompt)
     output = ''
     telnet_session.sendline('display brief interface')
     telnet_session.expect('display brief interface')
@@ -148,7 +148,7 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
             telnet_session.expect('display interface description')
             huawei_type = 'huawei-2326'
 
-    with open(f'{root_dir}/templates/int_des_{huawei_type}.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/{huawei_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return [line for line in result if not line[0].startswith('NULL') and not line[0].startswith('V')]

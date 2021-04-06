@@ -36,7 +36,7 @@ def show_interfaces(telnet_session) -> list:
         command='show interfaces configuration'
     )
     # Description
-    with open(f'{root_dir}/templates/int_des_alcatel_linksys.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/alcatel_linksys.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_state = int_des_.ParseText(port_state)  # Ищем интерфейсы
 
@@ -44,7 +44,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show interfaces description'
     )
-    with open(f'{root_dir}/templates/int_des_alcatel_linksys2.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/alcatel_linksys2.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_des = int_des_.ParseText(port_desc)  # Ищем интерфейсы
 
@@ -53,7 +53,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show interfaces status'
     )
-    with open(f'{root_dir}/templates/int_des_alcatel_linksys_link.template', 'r') as template_file:
+    with open(f'{root_dir}/templates/interfaces/alcatel_linksys_link.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_link = int_des_.ParseText(port_status)  # Ищем интерфейсы
 
