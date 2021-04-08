@@ -164,6 +164,7 @@ class TelnetConnect:
 
         # HUAWEI
         if 'Unrecognized command' in version:
+            huawei.login(self.telnet_session, self.privilege_mode_password)
             self.device["vendor"] = 'huawei'
             model = findall(
                 r'Quidway\s+(\S+)\s+.*uptime is',

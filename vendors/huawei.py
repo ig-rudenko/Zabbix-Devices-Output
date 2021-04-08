@@ -7,6 +7,31 @@ from core.intf_view import interface_normal_view
 root_dir = sys.path[0]
 
 
+def login(session, privilege_mode_password: str):
+    huawei_type = 'huawei-2326'
+    session.sendline('super')
+    v = session.expect(
+        [
+            'Unrecognized command',     # 0 - huawei-2326
+            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
+            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
+        ]
+    )
+    if v == 1:
+        session.sendline(privilege_mode_password)
+    if v >= 1:
+        huawei_type = 'huawei-2403'
+    if session.expect(
+            [
+                r'<\S+>',   # 0 - режим просмотра
+                r'\[\S+\]'  # 1 - режим редактирования
+            ]
+    ):  # Если находимся в режиме редактирования, то понижаем до режима просмотра
+        session.sendline('quit')
+        session.expect(r'<\S+>$')
+    return huawei_type
+
+
 def send_command(telnet_session, command: str, prompt=None):
     if prompt is None:
         prompt = [r'<\S+>$']
@@ -20,28 +45,7 @@ def show_mac_huawei(telnet_session, interfaces: list, interface_filter: str, pri
     intf_to_check = []  # Интерфейсы для проверки
     mac_output = ''  # Вывод MAC
 
-    telnet_session.sendline('super')
-    v = telnet_session.expect(
-        [
-            'Unrecognized command',     # 0 - huawei-2326
-            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
-            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
-        ]
-    )
-    if v == 1:
-        telnet_session.sendline(privilege_mode_password)
-    if v >= 1:
-        huawei_type = 'huawei-2403'
-    else:
-        huawei_type = 'huawei-2326'
-    if telnet_session.expect(
-            [
-                r'<\S+>',      # 0 - режим просмотра
-                r'\[\S+\]'     # 1 - режим редактирования
-            ]
-    ):  # Если находимся в режиме редактирования, то выходим из него
-        telnet_session.sendline('quit')
-        telnet_session.expect(r'<\S+>$')
+    huawei_type = login(telnet_session, privilege_mode_password)
 
     not_uplinks = True if interface_filter == 'only-abonents' else False
 
@@ -102,26 +106,8 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
     :param privilege_mode_password:     пароль от привилегированного режима
     :return:                            Кортеж (список интерфейсов, тип huawei)
     """
-    telnet_session.sendline('super')
-    v = telnet_session.expect(
-        [
-            'Unrecognized command',     # 0 - huawei-2326
-            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
-            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
-        ]
-    )
-    if v == 1:
-        telnet_session.sendline(privilege_mode_password)
-    if telnet_session.expect(
-            [
-                r'<\S+>$',   # 0
-                r'\[\S+\]$'  # 1
-            ]
-    ):
-        prompt = r'\[\S+\]$'
-    else:
-        prompt = r'<\S+>$'
-    print(prompt)
+
+    login(telnet_session, privilege_mode_password)
     output = ''
     telnet_session.sendline('display brief interface')
     telnet_session.expect('display brief interface')
@@ -130,7 +116,7 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
         match = telnet_session.expect(
             [
                 "  ---- More ----",         # 0 - продолжаем
-                prompt,                     # 1 - конец
+                r'<\S+>$',                  # 1 - конец
                 "Unrecognized command",     # 2 - данная команда не найдена
                 pexpect.TIMEOUT             # 3
             ]
@@ -143,7 +129,6 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
         if match == 1:
             break
         if match == 2:
-            telnet_session.sendline(prompt)
             telnet_session.sendline('display interface description')
             telnet_session.expect('display interface description')
             huawei_type = 'huawei-2326'
@@ -158,20 +143,7 @@ def show_device_info(telnet_session, privilege_mode_password: str):
 
     version = ''
 
-    huawei_type = 'huawei-2326'
-    telnet_session.sendline('super')
-    v = telnet_session.expect(
-        [
-            'Unrecognized command',     # 0 - huawei-2326
-            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
-            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
-        ]
-    )
-    if v == 1:
-        telnet_session.sendline(privilege_mode_password)
-    if v >= 1:
-        huawei_type = 'huawei-2403'
-    telnet_session.expect(r'<\S+>')
+    huawei_type = login(telnet_session, privilege_mode_password)
 
     if huawei_type == 'huawei-2403':
         # CPU
@@ -233,28 +205,12 @@ def show_device_info(telnet_session, privilege_mode_password: str):
 
 def show_cable_diagnostic(telnet_session, privilege_mode_password):
     cable_diagnostic = ''
-    huawei_type = 'huawei-2326'
-    telnet_session.sendline('super')
-    v = telnet_session.expect(
-        [
-            'Unrecognized command',     # 0 - huawei-2326
-            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
-            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
-        ]
-    )
-    if v == 1:
-        telnet_session.sendline(privilege_mode_password)
-    if v >= 1:
-        huawei_type = 'huawei-2403'
-    if not telnet_session.expect(
-            [
-                r'<\S+>',   # 0 - режим просмотра
-                r'\[\S+\]'  # 1 - режим редактирования
-            ]
-    ):  # Если находимся в режиме просмотра, то повышаем до режима редактирования
-        telnet_session.sendline('system-view')
-        telnet_session.expect('system-view')
-        telnet_session.expect(r'\S+]$')
+    huawei_type = login(telnet_session, privilege_mode_password)
+    interfaces_list = show_interfaces(telnet_session, privilege_mode_password)
+    telnet_session.sendline('system-view')
+    telnet_session.expect('system-view')
+    telnet_session.expect(r'\[\S+\]')
+
     if huawei_type == 'huawei-2326':
         # CABLE DIAGNOSTIC
         cable_diagnostic = '''
@@ -277,7 +233,6 @@ def show_cable_diagnostic(telnet_session, privilege_mode_password):
 
 
         '''
-        interfaces_list = show_interfaces(telnet_session=telnet_session)
         for intf in interfaces_list:
             if 'NULL' not in intf[0] and 'Vlan' not in intf[0]:
                 try:
@@ -311,7 +266,6 @@ def show_cable_diagnostic(telnet_session, privilege_mode_password):
 
 
 '''
-        interfaces_list = show_interfaces(telnet_session)
         for intf in interfaces_list:
             if 'NULL' not in intf[0] and 'Vlan' not in intf[0] and not 'SVSL' in intf[2]:
                 try:
@@ -333,27 +287,9 @@ def show_cable_diagnostic(telnet_session, privilege_mode_password):
     return cable_diagnostic
 
 
-def show_vlans(telnet_session, interfaces, privilege_mode_password: str, huawei_type: str = 'huawei-2326') -> tuple:
-    telnet_session.sendline('super')
-    v = telnet_session.expect(
-        [
-            'Unrecognized command',     # 0 - huawei-2326
-            '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
-            'User privilege level is'   # 2 - huawei-2403 уже привилегированный
-        ]
-    )
-    if v == 1:
-        telnet_session.sendline(privilege_mode_password)
-    if v >= 1:
-        huawei_type = 'huawei-2403'
-    if telnet_session.expect(
-            [
-                r'<\S+>',  # 0 - режим просмотра
-                r'\[\S+\]'  # 1 - режим редактирования
-            ]
-    ):  # Если находимся в режиме редактирования, то выходим из него
-        telnet_session.sendline('quit')
-        telnet_session.expect(r'<\S+>$')
+def show_vlans(telnet_session, interfaces, privilege_mode_password: str) -> tuple:
+
+    huawei_type = login(telnet_session, privilege_mode_password)
 
     result = []
     for line in interfaces:
