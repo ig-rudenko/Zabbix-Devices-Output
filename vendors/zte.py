@@ -71,14 +71,17 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str):
                    f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
     for intf in intf_to_check:
-        telnet_session.sendline(f'show fdb port {interface_normal_view(intf[0])} detail')
-        telnet_session.expect('detail')
+        telnet_session.sendline(f'show mac all-types port {intf[0]}')
+        if telnet_session.expect([r'6,DHCP', 'No MAC']):
+            separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
+            mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n No MAC address exists!\n\n"
+            continue
         mc_output = ''
         while True:
             match = telnet_session.expect(
                 [
-                    r'\(cfg\)#$|>$',        # 0 - конец списка
-                    "----- more -----",     # 1 - далее
+                    r'\S+\(cfg\)#$|\S+>$',        # 0 - конец списка
+                    r"----- more ----- Press Q or Ctrl\+C to break -----",     # 1 - далее
                     pexpect.TIMEOUT]        # 2
             )
             page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
@@ -92,9 +95,6 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str):
             else:
                 print("    Ошибка: timeout")
                 break
-        mc_output = sub(r'Fixed:\s*\d+([\W\S]+)', ' ', mc_output)
-        mc_output = sub(r'MacAddressVlan', '  Mac Address       Vlan', mc_output)
-        mc_output = sub(r'%\s+No matching mac address![\W\S]+', '  No matching mac address!', mc_output)
         separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
         mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n{mc_output}\n\n"
     if not intf_to_check:
