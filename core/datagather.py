@@ -7,17 +7,13 @@ class DataGather:
     """
     Реализует процесс сбора состояния портов и системной информации
     """
-    def __init__(self, ip, name):
-        self.db = DataBase()
+    def __init__(self, ip, name, auth_group):
         self.session = TelnetConnect(ip, name)
-        self.session.vendor = self.db.get_item(ip=ip)[0][2] \
-            if self.db.get_item(ip=ip) and self.db.get_item(ip=ip)[0][2] != 'None' else ''
-        self.session.auth_group = self.db.get_item(ip=ip)[0][3]\
-            if self.db.get_item(ip=ip) and self.db.get_item(ip=ip)[0][3] != 'None' else ''
+        self.session.auth_group = auth_group if auth_group and auth_group != 'None' else ''
 
     def collect(self, mode: str = ''):
-        if mode not in ['interfaces', 'sys-info']:
-            raise Exception(f'Invalid mode for DataGather.collect "{mode}"\nOnly interfaces, sys-info avaliable!')
+        if mode not in ['interfaces', 'sys-info', 'vlan']:
+            raise Exception(f'Invalid mode for DataGather.collect "{mode}"\nOnly interfaces, sys-info, vlan avaliable!')
 
         if self.session.auth_group:
             self.session.set_authentication(mode='group', auth_group=self.session.auth_group)
@@ -30,6 +26,9 @@ class DataGather:
         if mode == 'interfaces':
             if self.session.get_interfaces():
                 print(f'Interfaces collected! {self.session.device["name"]} ({self.session.device["ip"]})')
+        if mode == 'vlan':
+            if self.session.get_vlans():
+                print(f'VLAN\'s collected! {self.session.device["name"]} ({self.session.device["ip"]})')
         elif mode == 'sys-info':
             if self.session.get_device_info():
                 print(f'System information collected! {self.session.device["name"]} ({self.session.device["ip"]})')

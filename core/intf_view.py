@@ -20,6 +20,6 @@ def interface_normal_view(interface) -> str:
     elif bool(findall('^\d+', interface)):
         return findall('^\d+', interface)[0]
     elif bool(findall('^[Tt]e', interface)):
-        return f'TengigabitEthernet {interface_number[0][0]}'
+        return f'TenGigabitEthernet {interface_number[0][0]}'
     else:
         return interface

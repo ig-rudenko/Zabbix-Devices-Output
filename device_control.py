@@ -38,7 +38,14 @@ def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None
         with open(f'{root_dir}/data/{device_name}/vlans.yaml', 'r') as file:
             print(tabulate(yaml.safe_load(file)['data'], headers='keys', tablefmt="fancy_grid"))
         with open(f'{root_dir}/data/{device_name}/vlans_info.yaml', 'r') as file:
-            print(tabulate(yaml.safe_load(file)['data'], headers=['VLAN', 'Name', 'Status']))
+            vlans_info = yaml.safe_load(file)['data']
+        if isinstance(vlans_info, list):
+            if len(vlans_info[0]) == 3:
+                print(tabulate(vlans_info, headers=['VLAN', 'Name', 'Status']))
+            elif len(vlans_info[0]) == 2:
+                print(tabulate(vlans_info, headers=['VLAN', 'Name']))
+        else:
+            print(yaml.safe_load(file)['data'])
 
     if 'mac' in command and os.path.exists(f'{root_dir}/data/{device_name}/mac_result.yaml'):
         print('Последние сохраненные данные:\n')
@@ -120,7 +127,10 @@ def show_info(device_name: str,
 
         if 'vlan' in command:
             print(tabulate(session.get_vlans(), headers='keys', tablefmt="fancy_grid"))
-            print(tabulate(session.vlan_info, headers=['VLAN', 'Name', 'Status']))
+            if isinstance(session.vlan_info, list):
+                print(tabulate(session.vlan_info, headers=['VLAN', 'Name', 'Status']))
+            else:
+                print(session.vlan_info)
 
         if 'mac' in command:
             print(session.get_mac(description_filter=interface_filter))
@@ -158,11 +168,11 @@ if __name__ == '__main__':
 
     if args.data_gather:
         db = DataBase()
-        for line in db.get_table():
-            try:
-                DataGather(ip=line[0], name=line[1]).collect(args.data_gather)
-            except Exception as e:
-                print(e)
+        table = db.get_table()
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            for line in table:
+                data_gather = DataGather(ip=line[0], name=line[1], auth_group=line[3])
+                executor.submit(data_gather.collect, args.data_gather)
         sys.exit()
 
     show_info(

@@ -176,7 +176,7 @@ class TelnetConnect:
 
         # CISCO
         if 'cisco' in version.lower():
-            model = findall(r'Model number\s+:\s+(\S+)', version)
+            model = findall(r'Model number\s*:\s*(\S+)', version)
             self.device["vendor"] = f"cisco"
 
         # D_LINK
@@ -230,7 +230,7 @@ class TelnetConnect:
         if 'QTECH' in version:
             self.device["vendor"] = 'q-tech'
             model = findall(
-                r'\s*(\S+)\sDevice',
+                r'\s*(\S+)\sDevice, C',
                 extreme.send_command(
                     session=self.telnet_session,
                     command='show version | include Device'
@@ -321,8 +321,8 @@ class TelnetConnect:
                 self.device["vendor"] = item[0][2]
 
             # Если нет записи о вендоре устройства, то определим его
-            if not self.device["vendor"]:
-                self.device["vendor"] = self.get_device_model()
+            # if not self.device["vendor"]:
+            self.device["vendor"] = self.get_device_model()
             # После того, как определили тип устройства, обновляем таблицу базы данных
             db.update(
                 ip=self.device["ip"],

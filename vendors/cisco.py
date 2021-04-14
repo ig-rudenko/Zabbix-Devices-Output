@@ -10,7 +10,7 @@ root_dir = sys.path[0]
 def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
     output = ''
     session.sendline(command)
-    session.expect(command)
+    session.expect(command[-30:-3])
     if next_catch:
         session.expect(next_catch)
     while True:
@@ -194,7 +194,7 @@ def show_vlans(telnet_session, interfaces) -> tuple:
             output = send_command(
                 session=telnet_session,
                 command=f"show running-config interface {interface_normal_view(line[0])}",
-                next_catch="Building configuration.."
+                next_catch="Building configuration"
             )
             vlans_group = findall(r'vlan [add ]*(\S*\d)', output)   # Строчки вланов
             switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode

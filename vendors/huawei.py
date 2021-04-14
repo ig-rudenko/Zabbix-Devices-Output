@@ -132,7 +132,6 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
             telnet_session.sendline('display interface description')
             telnet_session.expect('display interface description')
             huawei_type = 'huawei-2326'
-
     with open(f'{root_dir}/templates/interfaces/{huawei_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
