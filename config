@@ -1,0 +1,7 @@
+[Zabbix]
+ZabbixURL=
+ZabbixAPILogin=
+ZabbixAPIPassword=
+
+[VlanTraceroute]
+DefaultDeviceName=
