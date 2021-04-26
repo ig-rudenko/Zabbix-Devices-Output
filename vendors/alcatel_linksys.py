@@ -82,5 +82,3 @@ def show_device_info(telnet_session):
         command='show cpu utilization'
     )
     return info
-
-
