@@ -12,7 +12,7 @@ def login(session, privilege_mode_password: str):
     session.sendline('super')
     v = session.expect(
         [
-            'Unrecognized command',     # 0 - huawei-2326
+            'Unrecognized command|Now user privilege is 3 level',     # 0 - huawei-2326
             '[Pp]ass',                  # 1 - huawei-2403 повышение уровня привилегий
             'User privilege level is'   # 2 - huawei-2403 уже привилегированный
         ]
@@ -32,13 +32,28 @@ def login(session, privilege_mode_password: str):
     return huawei_type
 
 
-def send_command(telnet_session, command: str, prompt=None):
+def send_command(session, command: str, prompt=None) -> str:
     if prompt is None:
-        prompt = [r'<\S+>$']
-    telnet_session.sendline(command)
-    telnet_session.expect(command)
-    telnet_session.expect(prompt)
-    return telnet_session.before.decode('utf-8').strip()
+        prompt = r'<\S+>$'
+    session.sendline(command)
+    session.expect(command)
+    output = ''
+    while True:
+        match = session.expect(
+            [
+                "  ---- More ----",         # 0 - продолжаем
+                prompt,                     # 1 - конец
+                "Unrecognized command",     # 2 - данная команда не найдена
+                pexpect.TIMEOUT             # 3
+            ]
+        )
+        output += str(session.before.decode('utf-8'))
+        if match == 0:
+            session.send(' ')
+            output += '\n'
+        if match >= 1:
+            break
+    return output
 
 
 def show_mac_huawei(telnet_session, interfaces: list, interface_filter: str, privilege_mode_password: str) -> str:
@@ -99,6 +114,32 @@ def show_mac_huawei(telnet_session, interfaces: list, interface_filter: str, pri
     return mac_output
 
 
+def show_interfaces_split_version(session, privilege_mode_password: str) -> list:
+    login(session, privilege_mode_password)  # Авторизируемся
+    raw_descriptions = send_command(session, 'display interface description')
+    with open(f'{root_dir}/templates/interfaces/huawei-2326_descriptions.template', 'r') as template_file:
+        int_des_ = textfsm.TextFSM(template_file)
+    descriptions = int_des_.ParseText(raw_descriptions)  # Ищем интерфейсы
+    raw_status = send_command(session, 'display interface brief')
+    with open(f'{root_dir}/templates/interfaces/huawei-2326_status.template', 'r') as template_file:
+        int_des_ = textfsm.TextFSM(template_file)
+    status = int_des_.ParseText(raw_status)  # Ищем интерфейсы
+    result = []
+    # Далее объединяем два массива в один: Интерфейс, Состояние + Описание
+    for line in status:
+        for desc in descriptions:
+            if line[0] == desc[0]:
+                # Выводим физическое состояние интерфейса, если он admin down или standby
+                if line[1] == '*down' or line[1] == '^down':
+                    result.append([line[0], line[1], desc[1].strip()])
+                elif line[1] == line[2]:
+                    result.append([line[0], line[2], desc[1].strip()])
+                else:
+                    # Если вывод не стандартный, то объединяем два значения
+                    result.append([line[0], f'{line[1]}/{line[2]}', desc[1].strip()])
+    return result
+
+
 def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
     """
         Обнаруживаем интерфейсы на коммутаторе типа Huawei
@@ -107,31 +148,13 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
     :return:                            Кортеж (список интерфейсов, тип huawei)
     """
 
-    login(telnet_session, privilege_mode_password)
+    huawei_type = login(telnet_session, privilege_mode_password)
     output = ''
-    telnet_session.sendline('display brief interface')
-    telnet_session.expect('display brief interface')
-    huawei_type = 'huawei-2403'
-    while True:
-        match = telnet_session.expect(
-            [
-                "  ---- More ----",         # 0 - продолжаем
-                r'<\S+>$',                  # 1 - конец
-                "Unrecognized command",     # 2 - данная команда не найдена
-                pexpect.TIMEOUT             # 3
-            ]
-        )
-        output += str(telnet_session.before.decode('utf-8'))
+    if huawei_type == 'huawei-2403':
+        output = send_command(telnet_session, 'display brief interface')
+    if huawei_type == 'huawei-2326':
+        output = send_command(telnet_session, 'display interface description')
 
-        if match == 0:
-            telnet_session.send(' ')
-            output += '\n'
-        if match == 1:
-            break
-        if match == 2:
-            telnet_session.sendline('display interface description')
-            telnet_session.expect('display interface description')
-            huawei_type = 'huawei-2326'
     with open(f'{root_dir}/templates/interfaces/{huawei_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы

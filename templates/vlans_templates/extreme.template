@@ -2,4 +2,4 @@ Value VID (\d+)
 Value PORTS (.+)
 
 Start
-  ^.*vlan v${VID} add ports ${PORTS} (tagged|untagged) -> Record
+  ^.*v[lm]an v${VID} add ports ${PORTS} (tagged|untagged) -> Record

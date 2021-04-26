@@ -145,7 +145,7 @@ class TelnetConnect:
                     r']$',
                     '-More-',
                     r'>\s*$',
-                    r'#\s*$',
+                    r'#\s*',
                     pexpect.TIMEOUT
                 ]
             )
@@ -157,6 +157,10 @@ class TelnetConnect:
             else:
                 break
         model = ''
+        # ProCurve
+        if 'Image stamp:' in version:
+            self.device["vendor"] = 'ProCurve'
+
         # ZTE
         if ' ZTE Corporation:' in version:
             self.device["vendor"] = 'zte'
@@ -166,13 +170,12 @@ class TelnetConnect:
         if 'Unrecognized command' in version:
             huawei.login(self.telnet_session, self.privilege_mode_password)
             self.device["vendor"] = 'huawei'
-            model = findall(
-                r'Quidway\s+(\S+)\s+.*uptime is',
-                huawei.send_command(
-                    telnet_session=self.telnet_session,
+            display_version_output = huawei.send_command(
+                    session=self.telnet_session,
                     command='display version'
                 )
-            )
+            model = findall(r'Quidway\s+(\S+)\s+.*uptime is', display_version_output)
+            self.device["software"] = findall(r'software, Version \S+ \(\S+ (\S+)\)', display_version_output)
 
         # CISCO
         if 'cisco' in version.lower():
@@ -289,10 +292,17 @@ class TelnetConnect:
                             r'[Pp]ass.*:\s*$',              # 3
                             r'Connection closed',           # 4
                             r'Unable to connect',           # 5
-                            r'[#>\]]\s*$'                   # 6
+                            r'[#>\]]\s*$',                  # 6
+                            r'Press any key to continue'    # 7
                         ],
                         timeout=20
                     )
+                    if login_stat == 7:  # Если необходимо нажать любую клавишу, чтобы продолжить
+                        self.telnet_session.send(' ')
+                        self.telnet_session.sendline(login)  # Вводим логин
+                        self.telnet_session.sendline(password)  # Вводим пароль
+                        self.telnet_session.expect('#')
+
                     if login_stat < 3:
                         self.telnet_session.sendline(login)  # Вводим логин
                         continue
@@ -311,7 +321,6 @@ class TelnetConnect:
             else:  # Если не удалось зайти под логинами и паролями из списка аутентификации
                 print(f'    Неверный логин или пароль! {self.device["name"]} ({self.device["ip"]})')
                 return False
-
             # Подключаемся к базе данных и смотрим, есть ли запись о вендоре для текущего оборудования
             db = DataBase()
             item = db.get_item(ip=self.device["ip"])
@@ -343,6 +352,12 @@ class TelnetConnect:
             yaml.dump(data, file, default_flow_style=False)
 
     def get_interfaces(self):
+        if 'ProCurve' in self.device["vendor"]:
+            self.raw_interfaces = procurve.show_interfaces(self.telnet_session)
+            self.device["interfaces"] = [
+                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
+                for line in self.raw_interfaces
+            ]
         if 'cisco' in self.device["vendor"]:
             self.raw_interfaces = cisco.show_interfaces(telnet_session=self.telnet_session)
             self.device["interfaces"] = [
@@ -359,10 +374,16 @@ class TelnetConnect:
                 for line in self.raw_interfaces
             ]
         if 'huawei' in self.device["vendor"]:
-            self.raw_interfaces = huawei.show_interfaces(
-                telnet_session=self.telnet_session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            if self.device.get("software") == ['V100R005C01SPC100']:
+                self.raw_interfaces = huawei.show_interfaces_split_version(
+                    session=self.telnet_session,
+                    privilege_mode_password=self.privilege_mode_password
+                )
+            else:
+                self.raw_interfaces = huawei.show_interfaces(
+                    telnet_session=self.telnet_session,
+                    privilege_mode_password=self.privilege_mode_password
+                )
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Port Status': line[1], 'Description': line[2]}
                 for line in self.raw_interfaces
@@ -419,6 +440,8 @@ class TelnetConnect:
         return self.device["interfaces"]
 
     def get_device_info(self):
+        if 'ProCurve' in self.device["vendor"]:
+            self.device_info = procurve.get_device_info(session=self.telnet_session)
         if 'cisco' in self.device["vendor"]:
             self.device_info = cisco.get_device_info(telnet_session=self.telnet_session)
         if 'd-link' in self.device["vendor"]:

@@ -7,7 +7,7 @@
 * Системная информация;
 * MAC-адреса на портах;
 * Диагностика кабелей;
-* VLAN на портах
+* VLAN на портах.
 
 #### Список поддерживаемых устройств и функционал
 
@@ -16,11 +16,12 @@
 | Cisco     | ✅ | ✅ | ✅ | ✅ | - |
 | Huawei    | ✅ | ✅ | ✅ | ✅ | ✅ |
 | D-Link    | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Eltex     | ✅ | ✅ | ✅ | ✅ | -|
+| Eltex     | ✅ | ✅ | ✅ | ✅ | - |
 | Edge-Core | ✅ | ✅ | ✅ | ✅ | - |
 | Extreme   | ✅ | ✅ | ✅ | ✅ | - |
-| Q-Tech    | ✅ | ✅ | ✅ | ✅ | ✅ |
-| ZTE       | ✅ | ✅ | - | - | - |
+| Q-Tech    | ✅ | ✅ | ✅ | ✅ | - |
+| ZTE       | ✅ | ✅ | ✅ | - | - |
+| ProCurve  | ✅ | - | ✅ | - | - |
 | Alcatel   | ✅ | - | - | - | - |
 | Lynksys   | ✅ | - | - | - | - |
 
@@ -149,7 +150,7 @@ session.connect()
 #### Пример работы программы
     
 
-    $ ./telnet_control/device_control.py  -N device_name -i 192.168.1.10 -m show-interfaces
+    $ ./telnet_control/device_control.py -N device_name -i 192.168.1.10 -m show-interfaces
         
         Подключаемся к device_name (192.168.1.10)
     
