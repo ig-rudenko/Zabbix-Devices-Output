@@ -8,12 +8,10 @@ import yaml
 import sys
 import os
 
-from core.tc import TelnetConnect
+from core.dc import DeviceConnect
 from core.tabulate import tabulate
 from core.datagather import DataGather
 from core.database import DataBase
-
-root_dir = sys.path[0]  # Полный путь к корневой папки
 
 
 def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None:
@@ -26,18 +24,18 @@ def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None
     :return:            None
     """
     print(f'Оборудование недоступно! ({device_ip})\n')
-    if 'show-interfaces' in command and os.path.exists(f'{root_dir}/data/{device_name}/interfaces.yaml'):
-        with open(f'{root_dir}/data/{device_name}/interfaces.yaml', 'r') as file:
+    if 'show-interfaces' in command and os.path.exists(f'{sys.path[0]}/data/{device_name}/interfaces.yaml'):
+        with open(f'{sys.path[0]}/data/{device_name}/interfaces.yaml', 'r') as file:
             interfaces_last_data = yaml.safe_load(file)
             print(f'Последние сохраненные данные: ({interfaces_last_data["saved time"]})\n')
             print(tabulate(interfaces_last_data['data'], headers='keys', tablefmt="fancy_grid"))
 
-    if 'vlan' in command and os.path.exists(f'{root_dir}/data/{device_name}/vlans.yaml') and \
-            os.path.exists(f'{root_dir}/data/{device_name}/vlans_info.yaml'):
+    if 'vlan' in command and os.path.exists(f'{sys.path[0]}/data/{device_name}/vlans.yaml') and \
+            os.path.exists(f'{sys.path[0]}/data/{device_name}/vlans_info.yaml'):
         print('Последние сохраненные данные:\n')
-        with open(f'{root_dir}/data/{device_name}/vlans.yaml', 'r') as file:
+        with open(f'{sys.path[0]}/data/{device_name}/vlans.yaml', 'r') as file:
             print(tabulate(yaml.safe_load(file)['data'], headers='keys', tablefmt="fancy_grid"))
-        with open(f'{root_dir}/data/{device_name}/vlans_info.yaml', 'r') as file:
+        with open(f'{sys.path[0]}/data/{device_name}/vlans_info.yaml', 'r') as file:
             vlans_info = yaml.safe_load(file)['data']
         if isinstance(vlans_info, list):
             if len(vlans_info[0]) == 3:
@@ -47,32 +45,34 @@ def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None
         else:
             print(yaml.safe_load(file)['data'])
 
-    if 'mac' in command and os.path.exists(f'{root_dir}/data/{device_name}/mac_result.yaml'):
+    if 'mac' in command and os.path.exists(f'{sys.path[0]}/data/{device_name}/mac_result.yaml'):
         print('Последние сохраненные данные:\n')
-        with open(f'{root_dir}/data/{device_name}/mac_result.yaml', 'r') as file:
+        with open(f'{sys.path[0]}/data/{device_name}/mac_result.yaml', 'r') as file:
             print(yaml.safe_load(file)['data'])
 
-    if 'cable-diagnostic' in command and os.path.exists(f'{root_dir}/data/{device_name}/cable-diag.yaml'):
+    if 'cable-diagnostic' in command and os.path.exists(f'{sys.path[0]}/data/{device_name}/cable-diag.yaml'):
         print('Последние сохраненные данные:\n')
-        with open(f'{root_dir}/data/{device_name}/cable-diag.yaml', 'r') as file:
+        with open(f'{sys.path[0]}/data/{device_name}/cable-diag.yaml', 'r') as file:
             print(yaml.safe_load(file)['data'])
 
-    if 'sys-info' in command and os.path.exists(f'{root_dir}/data/{device_name}/sys-info.yaml'):
+    if 'sys-info' in command and os.path.exists(f'{sys.path[0]}/data/{device_name}/sys-info.yaml'):
         print('Последние сохраненные данные:\n')
-        with open(f'{root_dir}/data/{device_name}/sys-info.yaml', 'r') as file:
+        with open(f'{sys.path[0]}/data/{device_name}/sys-info.yaml', 'r') as file:
             print(yaml.safe_load(file)['data'])
 
 
 def show_info(device_name: str,
               device_ip: str,
-              command: str = '',
-              interface_filter: str = r'NOMON',
-              authentication_file_path: str = f'{root_dir}/auth.yaml',
+              command: str,
+              interface_filter: str,
+              protocol: str,
+              authentication_file_path: str = f'{sys.path[0]}/auth.yaml',
               authentication_mode: str = 'mixed',
               authentication_group: str = None,
               login: Union[str, list, None] = None,
               password: Union[str, list, None] = None,
-              privilege_mode_password: str = None):
+              privilege_mode_password: str = None
+              ):
     """
     Осуществляет взаимодействие с оборудованием (указание типа авторизации, подключение, сбор данных, вывод)
 
@@ -90,6 +90,7 @@ def show_info(device_name: str,
     :param login:
     :param password:
     :param privilege_mode_password:
+    :param protocol:
     :return:
     """
 
@@ -105,7 +106,7 @@ def show_info(device_name: str,
 
     # Если оборудование доступно
     elif ip_check.returncode == 0:
-        session = TelnetConnect(device_ip, device_name=device_name)                       # Создаем экземпляр класса
+        session = DeviceConnect(device_ip, device_name=device_name)                       # Создаем экземпляр класса
         if login and password:
             session.set_authentication(login=login, password=password, privilege_mode_password=privilege_mode_password)
         if authentication_group:
@@ -115,7 +116,7 @@ def show_info(device_name: str,
         if authentication_mode == 'mixed':
             session.set_authentication(mode='mixed', auth_file=authentication_file_path)
 
-        if not session.connect():  # Не удалось подключиться
+        if not session.connect(protocol=protocol):  # Не удалось подключиться
             show_last_saved_data(command, device_ip, device_name)
             return 0
 
@@ -147,9 +148,10 @@ if __name__ == '__main__':
 
     parser.add_argument("-N", dest="device_name", help="device name", default='')
     parser.add_argument("-i", dest='ip', help="device IP")
+    parser.add_argument("--protocol", dest='protocol', help="ssh/telnet", default='telnet')
     parser.add_argument("-m", dest="mode", help="show-interfaces, vlan, mac, sys-info, cable-diagnostic", default='')
     parser.add_argument("--desc-filter", dest="description_filter", default=r'\S+')
-    parser.add_argument("--auth-file", dest="auth_file", default=f'{root_dir}/auth.yaml')
+    parser.add_argument("--auth-file", dest="auth_file", default=f'{sys.path[0]}/auth.yaml')
     parser.add_argument("--auth-mode", dest="auth_mode", help="default, group, auto, mixed", default='mixed')
     parser.add_argument("--auth-group", dest="auth_group", help="groups from auth file", default=None)
     parser.add_argument("--data-gather", dest="data_gather", help="Collect data from devices in database "
@@ -213,6 +215,7 @@ if __name__ == '__main__':
         device_ip=args.ip,
         command=args.mode,
         interface_filter=args.description_filter,
+        protocol=args.protocol,
         authentication_file_path=args.auth_file,
         authentication_mode=args.auth_mode,
         authentication_group=args.auth_group,

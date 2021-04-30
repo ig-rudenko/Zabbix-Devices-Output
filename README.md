@@ -30,7 +30,7 @@
 
 ## Интеграция с Zabbix
 
-Для работы скрипта, на сетевом оборудовании должен быть открыт `telnet` и создан пользователь
+Для работы скрипта, на сетевом оборудовании должен быть открыт `telnet` или `ssh` и создан пользователь
 для подключения по удаленному терминалу
 
 В файл `auth.yaml` добавляем новую группу авторизации `SomeGroup` в раздел `GROUPS`, 
@@ -48,10 +48,15 @@ GROUPS:
 
 Добавляем глобальный скрипт в Zabbix
 
-    /home/zabbix_scripts/telnet_control/device_control.py -N '{HOST.NAME}' -i {HOST.CONN} --auth-group {AUTH_GROUP} -m show-interfaces
+    /home/Zabbix-Devices-Output/device_control.py -N '{HOST.NAME}' -i {HOST.CONN} -m show-interfaces --auth-group {AUTH_GROUP} --protocol ssh
 
-Указываем полный путь до скрипта, а в качестве переменных необходимые макросы и тип возвращаемых данных, 
-в данном случае `show-interfaces` 
+Указываем полный путь до скрипта, а в качестве переменных необходимые макросы
+
+    -N (Имя устройства)
+    -i (IP адрес)
+    -m (Возвращаемые данные в данном случае `show-interfaces`)
+    --auth-group (Имя группы авторизации)
+    --protocol (Протокол подключения `ssh/telnet`. По умолчанию `telnet`)
 
 ![img.png](img/img.png)
 
@@ -59,9 +64,9 @@ GROUPS:
 
 ```python
 
-from core.tc import TelnetConnect
+from core.dc import DeviceConnect
 
-session = TelnetConnect(ip='192.168.0.10', device_name='device')
+session = DeviceConnect(ip='192.168.0.10', device_name='device')
 ```
 - **ip** - обязательный параметр
 - **device_name** - опциональный (по умолчанию пустая строка)
@@ -151,6 +156,7 @@ GROUPS:
   group_1:
     login: Cisco
     password: Cisco
+    privilege_mode_password: enable
     devices_by_ip:
       - 192.168.1.0/24
       - 192.168.2.1-100
@@ -174,7 +180,7 @@ MIXED:
 ##### Далее подключаемся к оборудованию
 
 ```python
-session.connect()
+session.connect(protocol='ssh')
 ```
 При успешном подключении возвращает **True**, в случае неудачи **False**
 #### Пример работы программы

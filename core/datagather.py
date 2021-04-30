@@ -1,6 +1,6 @@
 import sys
 from core.database import DataBase
-from core.tc import TelnetConnect
+from core.dc import DeviceConnect
 
 
 class DataGather:
@@ -8,7 +8,7 @@ class DataGather:
     Реализует процесс сбора состояния портов и системной информации
     """
     def __init__(self, ip, name, auth_group):
-        self.session = TelnetConnect(ip, name)
+        self.session = DeviceConnect(ip, name)
         self.session.auth_group = auth_group if auth_group and auth_group != 'None' else ''
 
     def collect(self, mode: str = ''):
@@ -20,7 +20,7 @@ class DataGather:
         else:
             self.session.set_authentication(mode='mixed')
 
-        if not self.session.connect():
+        if not self.session.connect(protocol='telnet'):
             return 0
 
         if mode == 'interfaces':

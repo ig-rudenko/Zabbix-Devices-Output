@@ -45,7 +45,7 @@ def ip_range(ip_input_range_list: list):
     return result
 
 
-class TelnetConnect:
+class DeviceConnect:
     def __init__(self, ip: str, device_name: str = ''):
         self.device: dict = {
             'ip': ip,
@@ -61,7 +61,7 @@ class TelnetConnect:
         self.login: list = ['admin']
         self.password: list = ['admin']
         self.privilege_mode_password: str = 'enable'
-        self.telnet_session = None
+        self.session = None
         self.raw_interfaces: list = []
         self.device_info: Union[str, None] = None
         self.mac_last_result: Union[str, None] = None
@@ -137,10 +137,10 @@ class TelnetConnect:
                 pass
 
     def get_device_model(self):
-        self.telnet_session.sendline('show version')
+        self.session.sendline('show version')
         version = ''
         while True:
-            m = self.telnet_session.expect(
+            m = self.session.expect(
                 [
                     r']$',
                     '-More-',
@@ -149,11 +149,11 @@ class TelnetConnect:
                     pexpect.TIMEOUT
                 ]
             )
-            version += str(self.telnet_session.before.decode('utf-8'))
+            version += str(self.session.before.decode('utf-8'))
             if m == 1:
-                self.telnet_session.send(' ')
+                self.session.send(' ')
             elif m == 4:
-                self.telnet_session.sendcontrol('C')
+                self.session.sendcontrol('C')
             else:
                 break
         model = ''
@@ -168,10 +168,10 @@ class TelnetConnect:
 
         # HUAWEI
         if 'Unrecognized command' in version:
-            huawei.login(self.telnet_session, self.privilege_mode_password)
+            huawei.login(self.session, self.privilege_mode_password)
             self.device["vendor"] = 'huawei'
             display_version_output = huawei.send_command(
-                    session=self.telnet_session,
+                    session=self.session,
                     command='display version'
                 )
             model = findall(r'Quidway\s+(\S+)\s+.*uptime is', display_version_output)
@@ -188,7 +188,7 @@ class TelnetConnect:
             model = findall(
                 r'Device Type\s+:\s+(\S+)\s',
                 d_link.send_command(
-                    session=self.telnet_session,
+                    session=self.session,
                     command='show switch',
                     privilege_mode_password=self.privilege_mode_password
                 )
@@ -205,7 +205,7 @@ class TelnetConnect:
             model = findall(
                 r'System Description:\s+(\S+)',
                 eltex.send_command(
-                    session=self.telnet_session,
+                    session=self.session,
                     command='show system'
                 )
             )
@@ -215,7 +215,7 @@ class TelnetConnect:
             model = findall(
                 r'System type:\s+Eltex\s(\S+)\s',
                 eltex.send_command(
-                    session=self.telnet_session,
+                    session=self.session,
                     command='show system | include \"System type\"'
                 )
             )
@@ -225,7 +225,7 @@ class TelnetConnect:
             model = findall(
                 r'System Type:\s+(\S+)',
                 extreme.send_command(
-                    session=self.telnet_session,
+                    session=self.session,
                     command='show switch | include \"System Type\"'
                 )
             )
@@ -235,38 +235,38 @@ class TelnetConnect:
             model = findall(
                 r'\s*(\S+)\sDevice, C',
                 extreme.send_command(
-                    session=self.telnet_session,
+                    session=self.session,
                     command='show version | include Device'
                 )
             )
 
         if '% Unknown command' in version:
-            self.telnet_session.sendline('display version')
+            self.session.sendline('display version')
             while True:
-                m = self.telnet_session.expect([r']$', '---- More', r'>$', r'#', pexpect.TIMEOUT, '{'])
+                m = self.session.expect([r']$', '---- More', r'>$', r'#', pexpect.TIMEOUT, '{'])
                 if m == 5:
-                    self.telnet_session.expect('}:')
-                    self.telnet_session.sendline('\n')
+                    self.session.expect('}:')
+                    self.session.sendline('\n')
                     continue
-                version += str(self.telnet_session.before.decode('utf-8'))
+                version += str(self.session.before.decode('utf-8'))
                 if m == 1:
-                    self.telnet_session.sendline(' ')
+                    self.session.sendline(' ')
                 if m == 4:
-                    self.telnet_session.sendcontrol('C')
+                    self.session.sendcontrol('C')
                 else:
                     break
             if findall(r'VERSION : MA\d+', version):
                 self.device["vendor"] = 'huawei-msan'
                 model = findall(r'VERSION : (\S+)', version)
         if 'show: invalid command, valid commands are' in version:
-            self.telnet_session.sendline('sys info show')
+            self.session.sendline('sys info show')
             while True:
-                m = self.telnet_session.expect([r']$', '---- More', r'>\s*$', r'#\s*$', pexpect.TIMEOUT])
-                version += str(self.telnet_session.before.decode('utf-8'))
+                m = self.session.expect([r']$', '---- More', r'>\s*$', r'#\s*$', pexpect.TIMEOUT])
+                version += str(self.session.before.decode('utf-8'))
                 if m == 1:
-                    self.telnet_session.sendline(' ')
+                    self.session.sendline(' ')
                 if m == 4:
-                    self.telnet_session.sendcontrol('C')
+                    self.session.sendcontrol('C')
                 else:
                     break
             if 'ZyNOS version' in version:
@@ -276,74 +276,127 @@ class TelnetConnect:
             self.device["model"] = model[0]
         return self.device["vendor"]
 
-    def connect(self) -> bool:
+    def connect(self, protocol: str, algorithm: str = '', cipher: str = '') -> bool:
         if not self.login or not self.password:
             self.set_authentication()
         connected = False
-        self.telnet_session = pexpect.spawn(f'telnet {self.device["ip"]}')
-        try:
+        if protocol == 'ssh':
+            algorithm_str = f' -oKexAlgorithms=+{algorithm}' if algorithm else ''
+            cipher_str = f' -c {cipher}' if cipher else ''
             for login, password in zip(self.login+['admin'], self.password+['admin']):
-                while not connected:  # Если не авторизировались
-                    login_stat = self.telnet_session.expect(
+                self.session = pexpect.spawn(
+                    f'ssh {login}@{self.device["ip"]}{algorithm_str}{cipher_str}'
+                )
+                while not connected:
+                    login_stat = self.session.expect(
                         [
-                            r"[Ll]ogin(?![-\siT]).*:\s*$",  # 0
-                            r"[Uu]ser\s(?![lfp]).*:\s*$",   # 1
-                            r"[Nn]ame.*:\s*$",              # 2
-                            r'[Pp]ass.*:\s*$',              # 3
-                            r'Connection closed',           # 4
-                            r'Unable to connect',           # 5
-                            r'[#>\]]\s*$',                  # 6
-                            r'Press any key to continue'    # 7
+                            r'no matching key exchange method found',           # 0
+                            r'no matching cipher found',                        # 1
+                            r'Are you sure you want to continue connecting',    # 2
+                            r'[Pp]assword:',                                    # 3
+                            r'[#>\]]\s*$',                                      # 4
+                            r'Connection closed'                                # 5
                         ],
                         timeout=20
                     )
-                    if login_stat == 7:  # Если необходимо нажать любую клавишу, чтобы продолжить
-                        self.telnet_session.send(' ')
-                        self.telnet_session.sendline(login)  # Вводим логин
-                        self.telnet_session.sendline(password)  # Вводим пароль
-                        self.telnet_session.expect('#')
-
-                    if login_stat < 3:
-                        self.telnet_session.sendline(login)  # Вводим логин
-                        continue
-                    if 4 <= login_stat <= 5:
-                        print(f'    Telnet недоступен! {self.device["name"]} ({self.device["ip"]})')
-                        return False
+                    if login_stat == 0:
+                        self.session.expect(pexpect.EOF)
+                        algorithm = findall(r'Their offer: (\S+)', self.session.before.decode('utf-8'))
+                        if algorithm:
+                            algorithm_str = f' -oKexAlgorithms=+{algorithm[0]}'
+                            self.session = pexpect.spawn(
+                                f'ssh {login}@{self.device["ip"]}{algorithm_str}{cipher_str}'
+                            )
+                    if login_stat == 1:
+                        self.session.expect(pexpect.EOF)
+                        cipher = findall(r'Their offer: (\S+)', self.session.before.decode('utf-8'))
+                        if cipher:
+                            cipher_str = f' -c {cipher[0].split(",")[-1]}'
+                            self.session = pexpect.spawn(
+                                f'ssh {login}@{self.device["ip"]}{algorithm_str}{cipher_str}'
+                            )
+                    if login_stat == 2:
+                        self.session.sendline('yes')
                     if login_stat == 3:
-                        self.telnet_session.sendline(password)  # Вводим пароль
-                    if login_stat >= 6:  # Если был поймал символ начала ввода команды
-                        connected = True  # Подключились
-                    break  # Выход из цикла
-
+                        self.session.sendline(password)
+                        if self.session.expect(['[Pp]assword:', r'[#>\]]\s*$']):
+                            connected = True
+                            break
+                        else:
+                            break   # Пробуем новый логин/пароль
+                    if login_stat == 4:
+                        # self.session.sendline('show')
+                        # self.session.expect(r'[#>\]]\s*$')
+                        # print(self.session.before.decode('utf-8'))
+                        connected = True
                 if connected:
                     break
 
-            else:  # Если не удалось зайти под логинами и паролями из списка аутентификации
-                print(f'    Неверный логин или пароль! {self.device["name"]} ({self.device["ip"]})')
+        if protocol == 'telnet':
+            self.session = pexpect.spawn(f'telnet {self.device["ip"]}')
+            try:
+                for login, password in zip(self.login+['admin'], self.password+['admin']):
+                    while not connected:  # Если не авторизировались
+                        login_stat = self.session.expect(
+                            [
+                                r"[Ll]ogin(?![-\siT]).*:\s*$",  # 0
+                                r"[Uu]ser\s(?![lfp]).*:\s*$",   # 1
+                                r"[Nn]ame.*:\s*$",              # 2
+                                r'[Pp]ass.*:\s*$',              # 3
+                                r'Connection closed',           # 4
+                                r'Unable to connect',           # 5
+                                r'[#>\]]\s*$',                  # 6
+                                r'Press any key to continue'    # 7
+                            ],
+                            timeout=20
+                        )
+                        if login_stat == 7:  # Если необходимо нажать любую клавишу, чтобы продолжить
+                            self.session.send(' ')
+                            self.session.sendline(login)  # Вводим логин
+                            self.session.sendline(password)  # Вводим пароль
+                            self.session.expect('#')
+
+                        if login_stat < 3:
+                            self.session.sendline(login)  # Вводим логин
+                            continue
+                        if 4 <= login_stat <= 5:
+                            print(f'    Telnet недоступен! {self.device["name"]} ({self.device["ip"]})')
+                            return False
+                        if login_stat == 3:
+                            self.session.sendline(password)  # Вводим пароль
+                        if login_stat >= 6:  # Если был поймал символ начала ввода команды
+                            connected = True  # Подключились
+                        break  # Выход из цикла
+
+                    if connected:
+                        break
+
+                else:  # Если не удалось зайти под логинами и паролями из списка аутентификации
+                    print(f'    Неверный логин или пароль! {self.device["name"]} ({self.device["ip"]})')
+                    return False
+            except pexpect.exceptions.TIMEOUT:
+                print(f'Login Error: Время ожидания превышено! {self.device["name"]} ({self.device["ip"]})')
                 return False
-            # Подключаемся к базе данных и смотрим, есть ли запись о вендоре для текущего оборудования
-            db = DataBase()
-            item = db.get_item(ip=self.device["ip"])
-            if not item:  # Если в базе нет данных, то создаем их
-                db.add_data(data=[(self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group)])
-            else:
-                self.device["vendor"] = item[0][2]
 
-            # Если нет записи о вендоре устройства, то определим его
-            # if not self.device["vendor"]:
-            self.device["vendor"] = self.get_device_model()
-            # После того, как определили тип устройства, обновляем таблицу базы данных
-            db.update(
-                ip=self.device["ip"],
-                update_data=[
-                    (self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group)
-                ]
-            )
-            return True
+        # Подключаемся к базе данных и смотрим, есть ли запись о вендоре для текущего оборудования
+        db = DataBase()
+        item = db.get_item(ip=self.device["ip"])
+        if not item:  # Если в базе нет данных, то создаем их
+            db.add_data(data=[(self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group)])
+        else:
+            self.device["vendor"] = item[0][2]
 
-        except pexpect.exceptions.TIMEOUT:
-            print(f'    Время ожидания превышено! (timeout) {self.device["name"]} ({self.device["ip"]})')
-            return False
+        # Если нет записи о вендоре устройства, то определим его
+        # if not self.device["vendor"]:
+        self.device["vendor"] = self.get_device_model()
+        # После того, как определили тип устройства, обновляем таблицу базы данных
+        db.update(
+            ip=self.device["ip"],
+            update_data=[
+                (self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group)
+            ]
+        )
+        return True
 
     def collect_data(self, mode, data):
         if not os.path.exists(f'{sys.path[0]}/data/{self.device["name"]}'):
@@ -353,20 +406,20 @@ class TelnetConnect:
 
     def get_interfaces(self):
         if 'ProCurve' in self.device["vendor"]:
-            self.raw_interfaces = procurve.show_interfaces(self.telnet_session)
+            self.raw_interfaces = procurve.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'cisco' in self.device["vendor"]:
-            self.raw_interfaces = cisco.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = cisco.show_interfaces(telnet_session=self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'd-link' in self.device["vendor"]:
             self.raw_interfaces = d_link.show_interfaces(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 privilege_mode_password=self.privilege_mode_password
             )
             self.device["interfaces"] = [
@@ -376,12 +429,12 @@ class TelnetConnect:
         if 'huawei' in self.device["vendor"]:
             if self.device.get("software") == ['V100R005C01SPC100']:
                 self.raw_interfaces = huawei.show_interfaces_split_version(
-                    session=self.telnet_session,
+                    session=self.session,
                     privilege_mode_password=self.privilege_mode_password
                 )
             else:
                 self.raw_interfaces = huawei.show_interfaces(
-                    telnet_session=self.telnet_session,
+                    telnet_session=self.session,
                     privilege_mode_password=self.privilege_mode_password
                 )
             self.device["interfaces"] = [
@@ -390,7 +443,7 @@ class TelnetConnect:
             ]
         if 'zte' in self.device["vendor"]:
             self.raw_interfaces = zte.show_interfaces(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 privilege_mode_password=self.privilege_mode_password
             )
             self.device["interfaces"] = [
@@ -398,20 +451,20 @@ class TelnetConnect:
                 for line in self.raw_interfaces
             ]
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
-            interfaces_list = alcatel_linksys.show_interfaces(telnet_session=self.telnet_session)
+            interfaces_list = alcatel_linksys.show_interfaces(telnet_session=self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in interfaces_list
             ]
         if 'edge-core' in self.device["vendor"]:
-            self.raw_interfaces = edge_core.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = edge_core.show_interfaces(telnet_session=self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'eltex' in self.device["vendor"]:
             self.raw_interfaces = eltex.show_interfaces(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 eltex_type=self.device["vendor"]
             )
             self.device["interfaces"] = [
@@ -419,13 +472,13 @@ class TelnetConnect:
                 for line in self.raw_interfaces
             ]
         if 'extreme' in self.device["vendor"]:
-            self.raw_interfaces = extreme.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = extreme.show_interfaces(telnet_session=self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'q-tech' in self.device["vendor"]:
-            self.raw_interfaces = qtech.show_interfaces(telnet_session=self.telnet_session)
+            self.raw_interfaces = qtech.show_interfaces(telnet_session=self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Link Status': line[1], 'Description': line[2]}
                 for line in self.raw_interfaces
@@ -441,31 +494,31 @@ class TelnetConnect:
 
     def get_device_info(self):
         if 'ProCurve' in self.device["vendor"]:
-            self.device_info = procurve.get_device_info(session=self.telnet_session)
+            self.device_info = procurve.get_device_info(session=self.session)
         if 'cisco' in self.device["vendor"]:
-            self.device_info = cisco.get_device_info(telnet_session=self.telnet_session)
+            self.device_info = cisco.get_device_info(telnet_session=self.session)
         if 'd-link' in self.device["vendor"]:
             self.device_info = d_link.show_device_info(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 privilege_mode_password=self.privilege_mode_password
             )
         if 'huawei' in self.device["vendor"]:
             self.device_info = huawei.show_device_info(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 privilege_mode_password=self.privilege_mode_password
             )
         if 'zte' in self.device["vendor"]:
-            self.device_info = zte.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = zte.show_device_info(telnet_session=self.session)
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
-            self.device_info = alcatel_linksys.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = alcatel_linksys.show_device_info(telnet_session=self.session)
         if 'edge-core' in self.device["vendor"]:
-            self.device_info = edge_core.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = edge_core.show_device_info(telnet_session=self.session)
         if 'eltex' in self.device["vendor"]:
-            self.device_info = eltex.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = eltex.show_device_info(telnet_session=self.session)
         if 'extreme' in self.device["vendor"]:
-            self.device_info = extreme.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = extreme.show_device_info(telnet_session=self.session)
         if 'q-tech' in self.device["vendor"]:
-            self.device_info = qtech.show_device_info(telnet_session=self.telnet_session)
+            self.device_info = qtech.show_device_info(telnet_session=self.session)
         self.collect_data(
             mode='sys-info',
             data={
@@ -479,29 +532,29 @@ class TelnetConnect:
         if not self.raw_interfaces:
             self.get_interfaces()
         if 'cisco' in self.device["vendor"]:
-            self.mac_last_result = cisco.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = cisco.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'd-link' in self.device["vendor"]:
-            self.mac_last_result = d_link.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = d_link.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'huawei' in self.device["vendor"]:
-            self.mac_last_result = huawei.show_mac_huawei(self.telnet_session, self.raw_interfaces,
+            self.mac_last_result = huawei.show_mac_huawei(self.session, self.raw_interfaces,
                                                           description_filter, self.privilege_mode_password)
         if 'zte' in self.device["vendor"]:
-            self.mac_last_result = zte.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = zte.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
             self.mac_last_result = "Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉"
         if 'edge-core' in self.device["vendor"]:
-            self.mac_last_result = edge_core.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = edge_core.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'eltex' in self.device["vendor"]:
             self.mac_last_result = eltex.show_mac(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 interfaces=self.raw_interfaces,
                 interface_filter=description_filter,
                 eltex_type=self.device["vendor"]
             )
         if 'extreme' in self.device["vendor"]:
-            self.mac_last_result = extreme.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = extreme.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'q-tech' in self.device["vendor"]:
-            self.mac_last_result = qtech.show_mac(self.telnet_session, self.raw_interfaces, description_filter)
+            self.mac_last_result = qtech.show_mac(self.session, self.raw_interfaces, description_filter)
         self.collect_data(
             mode='mac_result',
             data={
@@ -515,7 +568,7 @@ class TelnetConnect:
         if not self.raw_interfaces:
             self.get_interfaces()
         if 'cisco' in self.device["vendor"]:
-            self.vlan_info, vlans_last_result = cisco.show_vlans(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = cisco.show_vlans(self.session, self.raw_interfaces)
             self.vlans = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
                  "VLAN's": line[4]}
@@ -523,7 +576,7 @@ class TelnetConnect:
             ]
         if 'd-link' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = d_link.show_vlans(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 interfaces=self.raw_interfaces,
                 privilege_mode_password=self.privilege_mode_password
             )
@@ -534,7 +587,7 @@ class TelnetConnect:
             ]
         if 'huawei' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = huawei.show_vlans(
-                self.telnet_session, self.raw_interfaces, self.privilege_mode_password
+                self.session, self.raw_interfaces, self.privilege_mode_password
             )
             self.vlans = [
                 {'Interface': line[0], 'Port Link': line[1], 'Description': line[2], "VLAN's": line[3]}
@@ -545,28 +598,28 @@ class TelnetConnect:
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
             pass
         if 'edge-core' in self.device["vendor"]:
-            self.vlan_info, vlans_last_result = edge_core.show_vlan(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = edge_core.show_vlan(self.session, self.raw_interfaces)
             self.vlans = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
                  "VLAN's": line[4]}
                 for line in vlans_last_result
             ]
         if 'eltex' in self.device["vendor"]:
-            self.vlan_info, vlans_last_result = eltex.show_vlans(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = eltex.show_vlans(self.session, self.raw_interfaces)
             self.vlans = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
                  "VLAN's": line[4]}
                 for line in vlans_last_result
             ]
         if 'extreme' in self.device["vendor"]:
-            self.vlan_info, vlans_last_result = extreme.show_vlans(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = extreme.show_vlans(self.session, self.raw_interfaces)
             self.vlans = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
                  "VLAN's": line[4]}
                 for line in vlans_last_result
             ]
         if 'q-tech' in self.device["vendor"]:
-            self.vlan_info, vlans_last_result = qtech.show_vlan(self.telnet_session, self.raw_interfaces)
+            self.vlan_info, vlans_last_result = qtech.show_vlan(self.session, self.raw_interfaces)
             self.vlans = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Description': line[2], "VLAN's": line[3]}
                 for line in vlans_last_result
@@ -590,12 +643,12 @@ class TelnetConnect:
     def cable_diagnostic(self):
         if 'd-link' in self.device["vendor"]:
             self.cable_diag = d_link.show_cable_diagnostic(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 privilege_mode_password=self.privilege_mode_password
             )
         if 'huawei' in self.device["vendor"]:
             self.cable_diag = huawei.show_cable_diagnostic(
-                telnet_session=self.telnet_session,
+                telnet_session=self.session,
                 privilege_mode_password=self.privilege_mode_password
             )
         self.collect_data(
