@@ -61,103 +61,24 @@ def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None
             print(yaml.safe_load(file)['data'])
 
 
-def show_info(device_name: str,
-              device_ip: str,
-              command: str,
-              interface_filter: str,
-              protocol: str,
-              authentication_file_path: str = f'{sys.path[0]}/auth.yaml',
-              authentication_mode: str = 'mixed',
-              authentication_group: str = None,
-              login: Union[str, list, None] = None,
-              password: Union[str, list, None] = None,
-              privilege_mode_password: str = None
-              ):
-    """
-    Осуществляет взаимодействие с оборудованием (указание типа авторизации, подключение, сбор данных, вывод)
-
-    Если оборудование недоступно в данный момент, то будет выведена последняя сохраненная информация.
-
-    :param device_name: Уникальное имя устройства
-    :param device_ip:   IP адрес
-    :param command: Строка команд, какие данные необходимо собрать (interfaces, vlan, mac, cable-diagnostic, sys-info)
-    :param interface_filter: Регулярное выражение. Порты, чье описание совпадает с данным регулярным выражением,
-            необходимо добавить в процесс вывода MAC адресов
-    :param authentication_file_path: Полный путь к файлу аутентификации
-    :param authentication_mode: Тип аутентификации (group, mixed, auto). По умолчанию - mixed
-    :param authentication_group: Название группы, которая должна находиться в файле, указанном в переменной
-            authentication_file_path. По умолчанию root_dir/auth.yaml
-    :param login:
-    :param password:
-    :param privilege_mode_password:
-    :param protocol:
-    :return:
-    """
-
-    ip_check = subprocess.run(['ping', '-c', '3', '-n', device_ip], stdout=subprocess.DEVNULL)
-    # Проверка на доступность: 0 - доступен, 1 и 2 - недоступен
-    if ip_check.returncode == 2:
-        print(f'Неправильный ip адрес: {device_ip}')
-        return 0
-
-    # Если оборудование недоступно
-    elif ip_check.returncode == 1:
-        show_last_saved_data(command, device_ip, device_name)
-
-    # Если оборудование доступно
-    elif ip_check.returncode == 0:
-        session = DeviceConnect(device_ip, device_name=device_name)                       # Создаем экземпляр класса
-        if login and password:
-            session.set_authentication(login=login, password=password, privilege_mode_password=privilege_mode_password)
-        if authentication_group:
-            session.set_authentication(mode='group', auth_group=authentication_group, auth_file=authentication_file_path)
-        if not authentication_mode or authentication_mode == 'auto':
-            session.set_authentication(mode='auto', auth_file=authentication_file_path)
-        if authentication_mode == 'mixed':
-            session.set_authentication(mode='mixed', auth_file=authentication_file_path)
-
-        if not session.connect(protocol=protocol):  # Не удалось подключиться
-            show_last_saved_data(command, device_ip, device_name)
-            return 0
-
-        print(f"\n    Подключаемся к {device_name} ({device_ip})\n"
-              f"\n    Тип оборудования: {session.device['vendor']} {session.device['model']}\n")
-
-        if 'show-interfaces' in command:
-            print(tabulate(session.get_interfaces(), headers='keys', tablefmt="fancy_grid"))
-
-        if 'vlan' in command:
-            print(tabulate(session.get_vlans(), headers='keys', tablefmt="fancy_grid"))
-            if isinstance(session.vlan_info, list):
-                print(tabulate(session.vlan_info, headers=['VLAN', 'Name', 'Status']))
-            else:
-                print(session.vlan_info)
-
-        if 'mac' in command:
-            print(session.get_mac(description_filter=interface_filter))
-
-        if 'cable-diagnostic' in command:
-            print(session.cable_diagnostic())
-
-        if 'sys-info' in command:
-            print(session.get_device_info())
-
-
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="telnet control")
+    parser = argparse.ArgumentParser(description="Device control script")
 
-    parser.add_argument("-N", dest="device_name", help="device name", default='')
-    parser.add_argument("-i", dest='ip', help="device IP")
-    parser.add_argument("--protocol", dest='protocol', help="ssh/telnet", default='telnet')
-    parser.add_argument("-m", dest="mode", help="show-interfaces, vlan, mac, sys-info, cable-diagnostic", default='')
+    parser.add_argument("-N", dest="device_name", help="Device name", default='')
+    parser.add_argument("-i", dest='ip', help="Device IP", default='')
+    parser.add_argument("-P", dest='protocol', help="ssh/telnet/snmp (default telnet)", default='telnet')
+    parser.add_argument("-c", dest='snmp_community', help="SNMP v2c community", default='public')
+    parser.add_argument("--snmp-port", dest='snmp_port', help='SNMP v2c port (default 161)', default='161', type=str)
+    parser.add_argument("-m", dest="mode", help="(show-interfaces, vlan, mac, sys-info, cable-diagnostic)", default='')
     parser.add_argument("--desc-filter", dest="description_filter", default=r'\S+')
     parser.add_argument("--auth-file", dest="auth_file", default=f'{sys.path[0]}/auth.yaml')
-    parser.add_argument("--auth-mode", dest="auth_mode", help="default, group, auto, mixed", default='mixed')
-    parser.add_argument("--auth-group", dest="auth_group", help="groups from auth file", default=None)
-    parser.add_argument("--data-gather", dest="data_gather", help="Collect data from devices in database "
+    parser.add_argument("--auth-mode", dest="auth_mode", help="(default, group, auto, mixed)", default='mixed')
+    parser.add_argument("--auth-group", dest="auth_group", help="Groups from auth file", default=None)
+    parser.add_argument("--data-gather", dest="data_gather", help="Collect data from devices in database \n"
                                                                   "(interfaces, sys-info)")
-    parser.add_argument("-l", dest="login")
-    parser.add_argument("-p", dest="password")
+    parser.add_argument("-l", dest="login", help='For telnet/ssh')
+    parser.add_argument("-p", dest="password", help='For telnet/ssh')
+    parser.add_argument("--secret-pass", dest="privilege_mode_password", help='For telnet/ssh')
     parser.add_argument("--zabbix-rebase-from-groups", dest="zabbix_rebase_groups", type=str,
                         help="List zabbix group names separated by commas, no spaces 'group1,group2,group3'")
     args = parser.parse_args()
@@ -184,18 +105,13 @@ if __name__ == '__main__':
                 if item and item[0][1] != host["host"]:
                     # Обновляем имя узла сети, если он уже имеется в базе и имена отличаются
                     print('Обновляем', host["host"], host['interfaces'][0]['ip'])
-                    db.update(
-                        ip=host['interfaces'][0]['ip'],
-                        update_data=[
-                            (host['interfaces'][0]['ip'], host['host'], item[0][2], item[0][3])
-                        ]
-                    )
+                    db.update(ip=host['interfaces'][0]['ip'], device_name=host['host'])
                 elif not item:
                     # Создаем новую запись в таблицу
                     print('Добавляем', host["host"], host['interfaces'][0]['ip'])
                     db.add_data(
                         data=[
-                            (host['interfaces'][0]['ip'], host['host'], '', '')
+                            (host['interfaces'][0]['ip'], host['host'], '', '', 'snmp', '')
                         ]
                     )
         sys.exit()
@@ -206,19 +122,68 @@ if __name__ == '__main__':
         table = db.get_table()
         with ThreadPoolExecutor() as executor:
             for line in table:
-                data_gather = DataGather(ip=line[0], name=line[1], auth_group=line[3])
-                executor.submit(data_gather.collect, args.data_gather)
+                if 'DSL' in line[1]:
+                    data_gather = DataGather(ip=line[0], name=line[1], auth_group=line[3], protocol=line[4])
+                    executor.submit(data_gather.collect, args.data_gather)
         sys.exit()
 
-    show_info(
-        device_name=args.device_name,
-        device_ip=args.ip,
-        command=args.mode,
-        interface_filter=args.description_filter,
-        protocol=args.protocol,
-        authentication_file_path=args.auth_file,
-        authentication_mode=args.auth_mode,
-        authentication_group=args.auth_group,
-        login=args.login,
-        password=args.password
-    )
+    ip_check = subprocess.run(['ping', '-c', '3', '-n', args.ip], stdout=subprocess.DEVNULL)
+    # Проверка на доступность: 0 - доступен, 1 и 2 - недоступен
+    if ip_check.returncode == 2:
+        print(f'Неправильный ip адрес: {args.ip}')
+        sys.exit(1)
+
+    # Если оборудование недоступно
+    elif ip_check.returncode == 1:
+        show_last_saved_data(args.mode, args.ip, args.device_name)
+
+    # Если оборудование доступно
+    elif ip_check.returncode == 0:
+        session = DeviceConnect(args.ip, device_name=args.device_name)  # Создаем экземпляр класса
+
+        if args.protocol == 'snmp':
+            args.auth_mode = 'snmp'
+            session.set_authentication(mode='snmp', snmp_community=args.snmp_community, snmp_port=args.snmp_port)
+
+        if args.login and args.password:
+            session.set_authentication(
+                login=args.login,
+                password=args.password,
+                privilege_mode_password=args.privilege_mode_password
+            )
+        if args.auth_group:
+            session.set_authentication(mode='group', auth_group=args.auth_group,
+                                       auth_file=args.auth_file)
+        if not args.auth_mode or args.auth_mode == 'auto':
+            session.set_authentication(mode='auto', auth_file=args.auth_file)
+        if args.auth_mode == 'mixed':
+            session.set_authentication(mode='mixed', auth_file=args.auth_file)
+
+        if not session.connect(protocol=args.protocol):  # Не удалось подключиться
+            show_last_saved_data(args.mode, args.ip, args.device_name)
+            sys.exit(1)
+
+        print(f"\n    Подключаемся к {args.device_name} ({args.ip})\n")
+        print(f"\n    Тип оборудования: {session.device['vendor']} {session.device['model']}\n"
+              if session.device['vendor'] and session.device['model'] else '')
+
+        if 'show-interfaces' in args.mode:
+            print(tabulate(session.get_interfaces(), headers='keys', tablefmt="fancy_grid"))
+            if args.protocol == 'snmp':
+                print(session.device['snmp_interfaces_status_help'])
+
+        if 'vlan' in args.mode:
+            print(tabulate(session.get_vlans(), headers='keys', tablefmt="fancy_grid"))
+            if isinstance(session.vlan_info, list):
+                print(tabulate(session.vlan_info, headers=['VLAN', 'Name', 'Status']))
+            else:
+                print(session.vlan_info)
+
+        if 'mac' in args.mode:
+            print(session.get_mac(description_filter=args.description_filter))
+
+        if 'cable-diagnostic' in args.mode:
+            print(session.cable_diagnostic())
+
+        if 'sys-info' in args.mode:
+            print(session.get_device_info())

@@ -59,7 +59,9 @@ class DataBase:
                     ip              text not NULL primary key,
                     device_name     text not NULL,
                     vendor          text,
-                    auth_group      text
+                    auth_group      text,
+                    default_potocol text,
+                    model           text
                 );
             ''')
             return True
@@ -72,12 +74,12 @@ class DataBase:
     @ConnectionDB(database=db_path)
     def add_data(self, data: list) -> None:
         """
-        Принимаем на вход список кортежей [ (ip, device_name, vendor, auth_group) ]
+        Принимаем на вход список кортежей [ (ip, device_name, vendor, auth_group, default_protocol, model) ]
         """
         for row in data:
             try:
                 self.add_data.cursor.execute(
-                    'insert into equipment values (?, ?, ?, ?)',
+                    'insert into equipment values (?, ?, ?, ?, ?, ?)',
                     row
                 )
             except sqlite3.IntegrityError:
@@ -92,7 +94,7 @@ class DataBase:
         print(
             tabulate(
                 self.show_table.cursor.fetchall(),
-                headers=['ip', 'device_name', 'vendor', 'auth_group'],
+                headers=['ip', 'device_name', 'vendor', 'auth_group', 'default_protocol', 'model'],
                 tablefmt="presto",
                 showindex="always"
             )
@@ -131,11 +133,11 @@ class DataBase:
             raise error
 
     @ConnectionDB(database=db_path)
-    def update(self, ip: str, update_data: list):
+    def update(self, ip: str, **kwargs):
+        kv = []
+        for key in kwargs:
+            kv.append(f"{key}='{kwargs[key]}'")
+        string = ','.join(kv)
         self.execute(f"""
-                UPDATE equipment SET ip='{update_data[0][0]}', 
-                                     device_name='{update_data[0][1]}', 
-                                     vendor='{update_data[0][2]}',
-                                     auth_group='{update_data[0][3]}'
-                WHERE ip='{ip}'
+                UPDATE equipment SET {string} WHERE ip='{ip}'
         """)

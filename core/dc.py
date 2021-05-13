@@ -10,6 +10,7 @@ import os
 import yaml
 import ipaddress
 from core.database import DataBase
+import core.snmp
 from vendors import *
 
 root_dir = sys.path[0]
@@ -74,7 +75,9 @@ class DeviceConnect:
                            auth_group: str = None,
                            login: Union[str, list, None] = None,
                            password: Union[str, list, None] = None,
-                           privilege_mode_password: str = None) -> None:
+                           privilege_mode_password: str = None,
+                           snmp_community: str = 'public',
+                           snmp_port: str = '161') -> None:
         self.auth_mode = mode
         self.auth_file = auth_file
         self.auth_group = auth_group
@@ -135,6 +138,10 @@ class DeviceConnect:
 
             except Exception:
                 pass
+
+        if self.auth_mode == 'snmp':
+            self.device["snmp_community"] = snmp_community
+            self.device["snmp_port"] = snmp_port
 
     def get_device_model(self):
         self.session.sendline('show version')
@@ -277,6 +284,16 @@ class DeviceConnect:
         return self.device["vendor"]
 
     def connect(self, protocol: str, algorithm: str = '', cipher: str = '') -> bool:
+        if self.auth_mode == 'snmp' or protocol == 'snmp':
+            if not self.device.get("snmp_community") or not self.device.get("snmp_port"):
+                self.set_authentication(mode='snmp')
+            # Пытаемся получить данные по SNMP
+            if core.snmp.snmpget(self.device["snmp_community"], self.device["ip"], self.device["snmp_port"],
+                                 'SNMPv2-MIB::sysName.0'):
+                return True
+            else:
+                return False
+
         if not self.login or not self.password:
             self.set_authentication()
         connected = False
@@ -381,20 +398,24 @@ class DeviceConnect:
         # Подключаемся к базе данных и смотрим, есть ли запись о вендоре для текущего оборудования
         db = DataBase()
         item = db.get_item(ip=self.device["ip"])
-        if not item:  # Если в базе нет данных, то создаем их
-            db.add_data(data=[(self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group)])
-        else:
-            self.device["vendor"] = item[0][2]
 
-        # Если нет записи о вендоре устройства, то определим его
-        # if not self.device["vendor"]:
         self.device["vendor"] = self.get_device_model()
-        # После того, как определили тип устройства, обновляем таблицу базы данных
+
+        if not item:  # Если в базе нет данных, то создаем их
+            db.add_data(
+                data=[
+                    (self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group, protocol,
+                     self.device["model"])
+                ]
+            )
+        # Обновляем таблицу базы данных
         db.update(
             ip=self.device["ip"],
-            update_data=[
-                (self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group)
-            ]
+            device_name=self.device["name"],
+            vendor=self.device["vendor"],
+            auth_group=self.auth_group,
+            default_protocol=protocol,
+            model=self.device["model"]
         )
         return True
 
@@ -404,7 +425,16 @@ class DeviceConnect:
         with open(f'{sys.path[0]}/data/{self.device["name"]}/{mode}.yaml', 'w') as file:
             yaml.dump(data, file, default_flow_style=False)
 
-    def get_interfaces(self):
+    def get_interfaces(self) -> list:
+        if self.auth_mode == 'snmp':
+            self.device['snmp_interfaces_status_help'] = core.snmp.snmp_interface_status_help
+            self.raw_interfaces = core.snmp.show_interfaces(device_ip=self.device["ip"],
+                                                            community=self.device["snmp_community"],
+                                                            port=self.device["snmp_port"])
+            self.device["interfaces"] = [
+                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
+                for line in self.raw_interfaces
+            ]
         if 'ProCurve' in self.device["vendor"]:
             self.raw_interfaces = procurve.show_interfaces(self.session)
             self.device["interfaces"] = [
@@ -492,7 +522,9 @@ class DeviceConnect:
         )
         return self.device["interfaces"]
 
-    def get_device_info(self):
+    def get_device_info(self) -> str:
+        if self.auth_mode == 'snmp':
+            return 'Не поддерживается в данной версии'
         if 'ProCurve' in self.device["vendor"]:
             self.device_info = procurve.get_device_info(session=self.session)
         if 'cisco' in self.device["vendor"]:
@@ -528,7 +560,9 @@ class DeviceConnect:
         )
         return self.device_info
 
-    def get_mac(self, description_filter: str = r'\S+'):
+    def get_mac(self, description_filter: str = r'\S+') -> str:
+        if self.auth_mode == 'snmp':
+            return 'Не поддерживается в данной версии'
         if not self.raw_interfaces:
             self.get_interfaces()
         if 'cisco' in self.device["vendor"]:
@@ -564,7 +598,10 @@ class DeviceConnect:
         )
         return self.mac_last_result
 
-    def get_vlans(self):
+    def get_vlans(self) -> list:
+        if self.auth_mode == 'snmp':
+            return [{'!': 'Не поддерживается в данной версии'}]
+
         if not self.raw_interfaces:
             self.get_interfaces()
         if 'cisco' in self.device["vendor"]:
@@ -640,7 +677,9 @@ class DeviceConnect:
         )
         return self.vlans
 
-    def cable_diagnostic(self):
+    def cable_diagnostic(self) -> str:
+        if self.auth_mode == 'snmp':
+            return 'Не поддерживается в данной версии'
         if 'd-link' in self.device["vendor"]:
             self.cable_diag = d_link.show_cable_diagnostic(
                 telnet_session=self.session,
