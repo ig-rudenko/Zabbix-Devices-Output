@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 from concurrent.futures import ThreadPoolExecutor
-from typing import Union
 import argparse
 import subprocess
 import yaml
@@ -14,7 +14,36 @@ from core.datagather import DataGather
 from core.database import DataBase
 
 
-def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None:
+def parse_argument():
+    parser = argparse.ArgumentParser(description="Device control script")
+
+    parser.add_argument("-N", "--name", dest="device_name", help="Device name", default='', metavar='')
+    parser.add_argument("-i", "--ip", dest='ip', help="Device IP", default='', metavar='')
+    parser.add_argument("-P", dest='protocol', help="Protocol type (default telnet)", default='telnet',
+                        choices=['ssh', 'telnet', 'snmp'])
+    parser.add_argument("-c", dest='snmp_community', help="SNMP v2c community", default='public')
+    parser.add_argument("--snmp-port", dest='snmp_port', help='SNMP v2c port (default 161)', default='161', metavar='')
+    parser.add_argument("-m", "--mode", dest="mode", nargs='*',
+                        help="Output (show-interfaces, vlan, mac, sys-info, cable-diagnostic)", default='',
+                        choices=['show-interfaces', 'vlan', 'mac', 'sys-info', 'cable-diagnostic'], metavar='')
+    parser.add_argument("--desc-filter", dest="description_filter", default=r'\S+',
+                        help='Regular exception (default \'\\S+)\'')
+    parser.add_argument("--auth-file", dest="auth_file", default=f'{sys.path[0]}/auth.yaml')
+    parser.add_argument("--auth-mode", dest="auth_mode", help="Authorization type (default mixed)", default='mixed',
+                        choices=['default', 'group', 'auto', 'mixed'])
+    parser.add_argument("--auth-group", dest="auth_group", help="Groups from auth file", default=None)
+    parser.add_argument("--data-gather", dest="data_gather", help="Collect data from devices in database \n"
+                                                                  "(interfaces, sys-info, vlan)",
+                        choices=['interfaces', 'sys-info', 'vlan'])
+    parser.add_argument("-l", "--login", dest="login", help='For telnet/ssh', metavar='')
+    parser.add_argument("-p", "--passwd", dest="password", help='For telnet/ssh', metavar='')
+    parser.add_argument("--secret-pass", dest="privilege_mode_password", help='For telnet/ssh')
+    parser.add_argument("--zabbix-rebase", dest="zabbix_rebase_groups", nargs='+',
+                        help="Zabbix groups names", metavar='GROUPS')
+    return parser.parse_args()
+
+
+def show_last_saved_data(command, device_ip: str, device_name: str) -> None:
     """
     Возвращает последние сохраненные данные (если имеются) из директории <root_dir>/data/<device_name>/
 
@@ -62,27 +91,7 @@ def show_last_saved_data(command: str, device_ip: str, device_name: str) -> None
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Device control script")
-
-    parser.add_argument("-N", dest="device_name", help="Device name", default='')
-    parser.add_argument("-i", dest='ip', help="Device IP", default='')
-    parser.add_argument("-P", dest='protocol', help="ssh/telnet/snmp (default telnet)", default='telnet')
-    parser.add_argument("-c", dest='snmp_community', help="SNMP v2c community", default='public')
-    parser.add_argument("--snmp-port", dest='snmp_port', help='SNMP v2c port (default 161)', default='161', type=str)
-    parser.add_argument("-m", dest="mode", help="(show-interfaces, vlan, mac, sys-info, cable-diagnostic)", default='')
-    parser.add_argument("--desc-filter", dest="description_filter", default=r'\S+')
-    parser.add_argument("--auth-file", dest="auth_file", default=f'{sys.path[0]}/auth.yaml')
-    parser.add_argument("--auth-mode", dest="auth_mode", help="(default, group, auto, mixed)", default='mixed')
-    parser.add_argument("--auth-group", dest="auth_group", help="Groups from auth file", default=None)
-    parser.add_argument("--data-gather", dest="data_gather", help="Collect data from devices in database \n"
-                                                                  "(interfaces, sys-info)")
-    parser.add_argument("-l", dest="login", help='For telnet/ssh')
-    parser.add_argument("-p", dest="password", help='For telnet/ssh')
-    parser.add_argument("--secret-pass", dest="privilege_mode_password", help='For telnet/ssh')
-    parser.add_argument("--zabbix-rebase-from-groups", dest="zabbix_rebase_groups", type=str,
-                        help="List zabbix group names separated by commas, no spaces 'group1,group2,group3'")
-    args = parser.parse_args()
-
+    args = parse_argument()
     if args.zabbix_rebase_groups:
         # Обновляем базу из Zabbix
         from core.pyzabbix.api import ZabbixAPI
@@ -95,7 +104,7 @@ if __name__ == '__main__':
 
         db = DataBase()
         zabbix = ZabbixAPI(url=zabbix_url, user=zabbix_login, password=zabbix_pass)
-        groups_ids = zabbix.hostgroup.get(filter={"name": args.zabbix_rebase_groups.split(',')})
+        groups_ids = zabbix.hostgroup.get(filter={"name": args.zabbix_rebase_groups})
         for group in groups_ids:
             hosts = zabbix.host.get(groupids=group['groupid'], selectInterfaces=['ip'])  # Список узлов сети в группе
             for host in hosts:  # Для каждого найденного узла сети
