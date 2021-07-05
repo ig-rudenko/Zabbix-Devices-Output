@@ -170,7 +170,7 @@ class DeviceConnect:
         # ZTE
         if ' ZTE Corporation:' in version:
             self.device["vendor"] = 'zte'
-            model = findall(r'Module 0:\s+([\S\W]);\sfasteth', version)
+            model = findall(r'Module 0:\s*(\S+\s\S+);\s*fasteth', version)
 
         # HUAWEI
         if 'Unrecognized command' in version:
@@ -471,10 +471,7 @@ class DeviceConnect:
                 for line in self.raw_interfaces
             ]
         if 'zte' in self.device["vendor"]:
-            self.raw_interfaces = zte.show_interfaces(
-                telnet_session=self.session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            self.raw_interfaces = zte.show_interfaces(telnet_session=self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
@@ -572,7 +569,7 @@ class DeviceConnect:
             self.mac_last_result = huawei.show_mac_huawei(self.session, self.raw_interfaces,
                                                           description_filter, self.privilege_mode_password)
         if 'zte' in self.device["vendor"]:
-            self.mac_last_result = zte.show_mac(self.session, self.raw_interfaces, description_filter)
+            self.mac_last_result = zte.show_mac(self.session, self.raw_interfaces, description_filter, self.device["model"])
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
             self.mac_last_result = "Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉"
         if 'edge-core' in self.device["vendor"]:

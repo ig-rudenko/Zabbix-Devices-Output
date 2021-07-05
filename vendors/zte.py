@@ -1,31 +1,18 @@
 import pexpect
-from re import findall, sub
+from re import findall
 import sys
-from core import textfsm
-from core.intf_view import interface_normal_view
+import textfsm
 
 root_dir = sys.path[0]
 
 
-def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
-    telnet_session.sendline('\n')
-    level = telnet_session.expect(
-        [
-            r'\(cfg\)#$',   # 0 - привилегированный режим
-            r'>$'           # 1 - режим просмотра
-        ]
-    )
-    if level:
-        telnet_session.sendline('enable')
-        telnet_session.expect('[Pp]ass')
-        telnet_session.sendline(privilege_mode_password)
-        telnet_session.expect(r'\(cfg\)#$')
+def show_interfaces(telnet_session) -> list:
     telnet_session.sendline('show port')
     output = ''
     while True:
         match = telnet_session.expect(
             [
-                r'\(cfg\)#$',           # 0 - конец списка
+                r'>$',                  # 0 - конец списка
                 "----- more -----",     # 1 - продолжаем
                 pexpect.TIMEOUT         # 2
             ]
@@ -47,7 +34,7 @@ def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
     return result
 
 
-def show_mac(telnet_session, interfaces: list, interface_filter: str):
+def show_mac(telnet_session, interfaces: list, interface_filter: str, model: str):
     intf_to_check = []
     mac_output = ''
     not_uplinks = True if interface_filter == 'only-abonents' else False
@@ -71,21 +58,35 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str):
                    f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
 
     for intf in intf_to_check:
-        telnet_session.sendline(f'show mac all-types port {intf[0]}')
-        if telnet_session.expect([r'6,DHCP', 'No MAC']):
+        if '2936-FI' in model:
+            mac_command = f'show fdb port {intf[0]} detail'
+            mac_expect = [r'MacAddress\s*Vlan\s*PortId\s*Type\W+-+\s*-+\s*-+\s*-+', 'No matching mac address']
+            mc_output = '  MacAddress        Vlan  PortId   Type\n  '
+        else:
+            mac_command = f'show mac all-types port {intf[0]}'
+            mac_expect = [r'6,DHCP', 'No MAC']
+            mc_output = ''
+        telnet_session.sendline(mac_command)
+        telnet_session.expect(mac_command)
+        if telnet_session.expect(mac_expect):   # нет MAC
             separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
-            mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n No MAC address exists!\n\n"
+            mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n  No MAC address exists!\n\n"
             continue
-        mc_output = ''
+
         while True:
             match = telnet_session.expect(
                 [
                     r'\S+\(cfg\)#$|\S+>$',        # 0 - конец списка
-                    r"----- more ----- Press Q or Ctrl\+C to break -----",     # 1 - далее
-                    pexpect.TIMEOUT]        # 2
+                    r"\r\n----- more ----- Press Q or Ctrl\+C to break -----",     # 1 - далее
+                    pexpect.TIMEOUT     # 2
+                ]
             )
             page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
-                "        ", '')
+                "        ", '').\
+                replace(
+                '                                                   '
+                , '  '
+            )
             mc_output += page.strip()
             if match == 0:
                 break
@@ -95,6 +96,7 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str):
             else:
                 print("    Ошибка: timeout")
                 break
+
         separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
         mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n{mc_output}\n\n"
     if not intf_to_check:

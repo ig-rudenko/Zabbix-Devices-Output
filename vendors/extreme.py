@@ -1,7 +1,7 @@
 import pexpect
-from re import findall, sub
+from re import findall
 import sys
-from core import textfsm
+import textfsm
 
 root_dir = sys.path[0]
 
@@ -203,7 +203,7 @@ def show_vlans(telnet_session, interfaces: list):
     interfaces_vlan = []  # итоговый список (интерфейсы и вланы)
 
     for line in interfaces:
-        max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+        max_letters_in_string = 20  # Ограничение на кол-во символов в одной строке в столбце VLAN's
         vlans_compact_str = ''  # Строка со списком VLANов с переносами
         line_str = ''
         for part in ports_vlan[int(line[0])]:

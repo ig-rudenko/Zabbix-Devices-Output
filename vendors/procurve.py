@@ -1,8 +1,7 @@
 import pexpect
-from re import findall, sub
+from re import findall
 import sys
-from core import textfsm
-from core.intf_view import interface_normal_view
+import textfsm
 
 
 def send_command(session, command: str, prompt=None):

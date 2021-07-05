@@ -1,6 +1,6 @@
 from re import findall, sub
 import sys
-from core import textfsm
+import textfsm
 from core.intf_view import interface_normal_view
 
 root_dir = sys.path[0]
@@ -125,12 +125,12 @@ def show_cable_diagnostic(telnet_session, privilege_mode_password: str):
             ┌─────────────────────┐
             │ Диагностика кабелей │
             └─────────────────────┘
-            
+
     Pair Open — конец линии (либо обрыв) на растоянии ХХ метров
     Link Up, длинна ХХ метров
     Link Down, OK — нельзя измерить длинну кабеля (но нагрузка есть)
     Link Down, No Cable — нет кабеля
-    
+
     '''
     info += telnet_session.before.decode('utf-8')
     return info
@@ -177,7 +177,7 @@ def show_vlans(telnet_session, interfaces: list, privilege_mode_password: str) -
     interfaces_vlan = []    # итоговый список (интерфейсы и вланы)
 
     for line in interfaces:
-        max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+        max_letters_in_string = 20  # Ограничение на кол-во символов в одной строке в столбце VLAN's
         vlans_compact_str = ''  # Строка со списком VLANов с переносами
         line_str = ''
         for part in ports_vlan[int(findall(r'\d+', line[0])[0])]:

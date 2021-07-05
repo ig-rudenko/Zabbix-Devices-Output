@@ -1,6 +1,6 @@
 import pexpect
 import sys
-from core import textfsm
+import textfsm
 
 root_dir = sys.path[0]
 

@@ -1,7 +1,7 @@
 import sqlite3
 import sys
 import os
-from core.tabulate import tabulate
+from tabulate import tabulate
 
 db_path = f'{sys.path[0]}/db/database.db'
 if not os.path.exists(os.path.split(db_path)[0]):

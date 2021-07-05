@@ -1,7 +1,7 @@
 import pexpect
 from re import findall, sub
 import sys
-from core import textfsm
+import textfsm
 from core.intf_view import interface_normal_view
 
 root_dir = sys.path[0]
@@ -340,7 +340,7 @@ def show_vlans(telnet_session, interfaces, privilege_mode_password: str) -> tupl
             vlans_group = sub(r'(?<=undo).+vlan (.+)', '', output)   # Убираем строчки, где есть "undo"
             vlans_group = list(set(findall(r'vlan (.+)', vlans_group)))   # Ищем строчки вланов, без повторений
             switchport_mode = list(set(findall(r'port (hybrid|trunk|access)', output)))  # switchport mode
-            max_letters_in_string = 35  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+            max_letters_in_string = 20  # Ограничение на кол-во символов в одной строке в столбце VLAN's
             vlans_compact_str = ''      # Строка со списком VLANов с переносами
             line_str = ''
             for part in ','.join(switchport_mode + vlans_group).split(','):

@@ -9,7 +9,7 @@ import sys
 import os
 
 from core.dc import DeviceConnect
-from core.tabulate import tabulate
+from tabulate import tabulate
 from core.datagather import DataGather
 from core.database import DataBase
 
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     args = parse_argument()
     if args.zabbix_rebase_groups:
         # Обновляем базу из Zabbix
-        from core.pyzabbix.api import ZabbixAPI
+        from pyzabbix import ZabbixAPI
         from configparser import ConfigParser
         config = ConfigParser()
         config.read(f'{sys.path[0]}/config')
@@ -131,9 +131,8 @@ if __name__ == '__main__':
         table = db.get_table()
         with ThreadPoolExecutor() as executor:
             for line in table:
-                if 'DSL' in line[1]:
-                    data_gather = DataGather(ip=line[0], name=line[1], auth_group=line[3], protocol=line[4])
-                    executor.submit(data_gather.collect, args.data_gather)
+                data_gather = DataGather(ip=line[0], name=line[1], auth_group=line[3], protocol=line[4])
+                executor.submit(data_gather.collect, args.data_gather)
         sys.exit()
 
     ip_check = subprocess.run(['ping', '-c', '3', '-n', args.ip], stdout=subprocess.DEVNULL)
@@ -173,7 +172,7 @@ if __name__ == '__main__':
             sys.exit(1)
 
         print(f"\n    Подключаемся к {args.device_name} ({args.ip})\n")
-        print(f"\n    Тип оборудования: {session.device['vendor']} {session.device['model']}\n"
+        print(f"\n    Тип оборудования: {session.device['vendor']}", f"{session.device['model']}\n"
               if session.device['vendor'] and session.device['model'] else '')
 
         if 'show-interfaces' in args.mode:
