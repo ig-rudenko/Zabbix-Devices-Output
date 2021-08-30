@@ -2,62 +2,22 @@ import pexpect
 from re import findall, sub
 import sys
 import textfsm
-from core.intf_view import interface_normal_view
-
-root_dir = sys.path[0]
+from core.misc import interface_normal_view
+from core.commands import send_command as sendcmd
+from core.misc import filter_interface_mac
 
 
 def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
-    output = ''
-    session.sendline(command)
-    session.expect(command)
-    if next_catch:
-        session.expect(next_catch)
-    while True:
-        match = session.expect(
-            [
-                prompt,
-                "--More--",
-                pexpect.TIMEOUT
-            ]
-        )
-        page = str(session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        output += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            session.send(" ")
-            output += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
-    return output
+    return sendcmd(session, command, prompt, space_prompt="--More--", before_catch=next_catch)
 
 
 def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
-
-    intf_to_check = []  # Интерфейсы для проверки
     mac_output = ''  # Вывод MAC
-    not_uplinks = True if interface_filter == 'only-abonents' else False
 
-    for line in interfaces:
-        if (
-                (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
-                or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
-                    'SVSL' not in line[2].upper() and  # - интерфейсов, которые содержат "SVSL"
-                    'POWER_MONITORING' not in line[2].upper())  # - POWER_MONITORING
-                and not ('down' in line[1].lower() and not line[2])  # - пустые интерфейсы с LinkDown
-                and 'down' not in line[1].lower()  # И только интерфейсы со статусом admin up
-        ):  # Если описание интерфейсов удовлетворяет фильтру
-            intf_to_check.append([line[0], line[2]])
-
+    # Оставляем только необходимые порты для просмотра MAC
+    intf_to_check, status = filter_interface_mac(interfaces, interface_filter)
     if not intf_to_check:
-        if not_uplinks:
-            return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
-        else:
-            return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
-                   f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
+        return status
 
     for intf in intf_to_check:  # для каждого интерфейса
         telnet_session.sendline(f'show mac-address-table interface ethernet {intf[0]}')
@@ -88,7 +48,7 @@ def show_interfaces(telnet_session) -> list:
         command='show interface ethernet status'
     )
     output = sub(r'[\W\S]+\nInterface', '\nInterface', output)
-    with open(f'{root_dir}/templates/interfaces/q-tech.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/interfaces/q-tech.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result
@@ -160,7 +120,7 @@ def show_vlan(telnet_session, interfaces):
         session=telnet_session,
         command='show vlan'
     )
-    with open(f'{root_dir}/templates/vlans_templates/q-tech.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/vlans_templates/q-tech.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)
         vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы
 

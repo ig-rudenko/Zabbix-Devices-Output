@@ -3,3 +3,4 @@ tabulate>=0.8.9
 textfsm>=1.1.0
 pexpect>=4.8.0
 ipaddress>=1.0.23
+pyzabbix>=1.0.0

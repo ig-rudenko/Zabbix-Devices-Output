@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-
 from typing import Union
 from re import findall
+import re
 from datetime import datetime
 import pexpect
 import sys
@@ -11,8 +11,6 @@ import ipaddress
 from core.database import DataBase
 import core.snmp
 from vendors import *
-
-root_dir = sys.path[0]
 
 
 def ip_range(ip_input_range_list: list):
@@ -56,7 +54,7 @@ class DeviceConnect:
             'mac': '00:00:00:00:00:00'
         }
         self.auth_mode: str = 'default'
-        self.auth_file: str = f'{root_dir}/auth.yaml'
+        self.auth_file: str = f'{sys.path[0]}/auth.yaml'
         self.auth_group: Union[str, None] = None
         self.login: list = ['admin']
         self.password: list = ['admin']
@@ -70,7 +68,7 @@ class DeviceConnect:
         self.cable_diag: Union[str, None] = None
 
     def set_authentication(self, mode: str = 'auto',
-                           auth_file: str = f'{root_dir}/auth.yaml',
+                           auth_file: str = f'{sys.path[0]}/auth.yaml',
                            auth_group: str = None,
                            login: Union[str, list, None] = None,
                            password: Union[str, list, None] = None,
@@ -425,6 +423,7 @@ class DeviceConnect:
             yaml.dump(data, file, default_flow_style=False)
 
     def get_interfaces(self) -> list:
+        # SNMP
         if self.auth_mode == 'snmp':
             self.device['snmp_interfaces_status_help'] = core.snmp.snmp_interface_status_help
             self.raw_interfaces = core.snmp.show_interfaces(device_ip=self.device["ip"],
@@ -434,6 +433,8 @@ class DeviceConnect:
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
+
+        # SSH / TELNET
         if 'ProCurve' in self.device["vendor"]:
             self.raw_interfaces = procurve.show_interfaces(self.session)
             self.device["interfaces"] = [
@@ -441,70 +442,59 @@ class DeviceConnect:
                 for line in self.raw_interfaces
             ]
         if 'cisco' in self.device["vendor"]:
-            self.raw_interfaces = cisco.show_interfaces(telnet_session=self.session)
+            self.raw_interfaces = cisco.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'd-link' in self.device["vendor"]:
-            self.raw_interfaces = d_link.show_interfaces(
-                telnet_session=self.session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            self.raw_interfaces = d_link.show_interfaces(self.session, self.privilege_mode_password)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'huawei' in self.device["vendor"]:
             if self.device.get("software") == ['V100R005C01SPC100']:
-                self.raw_interfaces = huawei.show_interfaces_split_version(
-                    session=self.session,
-                    privilege_mode_password=self.privilege_mode_password
-                )
+                self.raw_interfaces = huawei.show_interfaces_split_version(self.session, self.privilege_mode_password)
             else:
-                self.raw_interfaces = huawei.show_interfaces(
-                    telnet_session=self.session,
-                    privilege_mode_password=self.privilege_mode_password
-                )
+                self.raw_interfaces = huawei.show_interfaces(self.session, self.privilege_mode_password)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Port Status': line[1], 'Description': line[2]}
                 for line in self.raw_interfaces
             ]
         if 'zte' in self.device["vendor"]:
-            self.raw_interfaces = zte.show_interfaces(telnet_session=self.session)
+            self.raw_interfaces = zte.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
-            interfaces_list = alcatel_linksys.show_interfaces(telnet_session=self.session)
+            interfaces_list = alcatel_linksys.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in interfaces_list
             ]
         if 'edge-core' in self.device["vendor"]:
-            self.raw_interfaces = edge_core.show_interfaces(telnet_session=self.session)
+            self.raw_interfaces = edge_core.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'eltex' in self.device["vendor"]:
-            self.raw_interfaces = eltex.show_interfaces(
-                telnet_session=self.session,
-                eltex_type=self.device["vendor"]
+            self.raw_interfaces = eltex.show_interfaces(self.session, eltex_type=self.device["vendor"]
             )
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'extreme' in self.device["vendor"]:
-            self.raw_interfaces = extreme.show_interfaces(telnet_session=self.session)
+            self.raw_interfaces = extreme.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
                 for line in self.raw_interfaces
             ]
         if 'q-tech' in self.device["vendor"]:
-            self.raw_interfaces = qtech.show_interfaces(telnet_session=self.session)
+            self.raw_interfaces = qtech.show_interfaces(self.session)
             self.device["interfaces"] = [
                 {'Interface': line[0], 'Link Status': line[1], 'Description': line[2]}
                 for line in self.raw_interfaces
@@ -522,31 +512,25 @@ class DeviceConnect:
         if self.auth_mode == 'snmp':
             return 'Не поддерживается в данной версии'
         if 'ProCurve' in self.device["vendor"]:
-            self.device_info = procurve.get_device_info(session=self.session)
+            self.device_info = procurve.get_device_info(self.session)
         if 'cisco' in self.device["vendor"]:
-            self.device_info = cisco.get_device_info(telnet_session=self.session)
+            self.device_info = cisco.get_device_info(self.session)
         if 'd-link' in self.device["vendor"]:
-            self.device_info = d_link.show_device_info(
-                telnet_session=self.session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            self.device_info = d_link.show_device_info(self.session, self.privilege_mode_password)
         if 'huawei' in self.device["vendor"]:
-            self.device_info = huawei.show_device_info(
-                telnet_session=self.session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            self.device_info = huawei.show_device_info(self.session, self.privilege_mode_password)
         if 'zte' in self.device["vendor"]:
-            self.device_info = zte.show_device_info(telnet_session=self.session)
+            self.device_info = zte.show_device_info(self.session)
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
-            self.device_info = alcatel_linksys.show_device_info(telnet_session=self.session)
+            self.device_info = alcatel_linksys.show_device_info(self.session)
         if 'edge-core' in self.device["vendor"]:
-            self.device_info = edge_core.show_device_info(telnet_session=self.session)
+            self.device_info = edge_core.show_device_info(self.session)
         if 'eltex' in self.device["vendor"]:
-            self.device_info = eltex.show_device_info(telnet_session=self.session)
+            self.device_info = eltex.show_device_info(self.session)
         if 'extreme' in self.device["vendor"]:
-            self.device_info = extreme.show_device_info(telnet_session=self.session)
+            self.device_info = extreme.show_device_info(self.session)
         if 'q-tech' in self.device["vendor"]:
-            self.device_info = qtech.show_device_info(telnet_session=self.session)
+            self.device_info = qtech.show_device_info(self.session)
         self.collect_data(
             mode='sys-info',
             data={
@@ -576,7 +560,7 @@ class DeviceConnect:
             self.mac_last_result = edge_core.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'eltex' in self.device["vendor"]:
             self.mac_last_result = eltex.show_mac(
-                telnet_session=self.session,
+                self.session,
                 interfaces=self.raw_interfaces,
                 interface_filter=description_filter,
                 eltex_type=self.device["vendor"]
@@ -609,7 +593,7 @@ class DeviceConnect:
             ]
         if 'd-link' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = d_link.show_vlans(
-                telnet_session=self.session,
+                self.session,
                 interfaces=self.raw_interfaces,
                 privilege_mode_password=self.privilege_mode_password
             )
@@ -675,17 +659,11 @@ class DeviceConnect:
 
     def cable_diagnostic(self) -> str:
         if self.auth_mode == 'snmp':
-            return 'Не поддерживается в данной версии'
+            return 'Не поддерживается диагностика кабелей с помощью SNMP!\nВоспользуйтесь telnet или ssh'
         if 'd-link' in self.device["vendor"]:
-            self.cable_diag = d_link.show_cable_diagnostic(
-                telnet_session=self.session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            self.cable_diag = d_link.show_cable_diagnostic(self.session, self.privilege_mode_password)
         if 'huawei' in self.device["vendor"]:
-            self.cable_diag = huawei.show_cable_diagnostic(
-                telnet_session=self.session,
-                privilege_mode_password=self.privilege_mode_password
-            )
+            self.cable_diag = huawei.show_cable_diagnostic(self.session, self.privilege_mode_password)
         self.collect_data(
             mode='cable-diag',
             data={
@@ -694,3 +672,28 @@ class DeviceConnect:
             }
         )
         return self.cable_diag
+
+    def get_logs(self) -> str:
+        logs = '\n\n                  Упс 🤔' \
+               '\n\n    Для этого оборудования пока не работает'
+
+        if self.auth_mode == 'snmp':
+            logs = 'Не поддерживается чтение логов с помощью SNMP!\nВоспользуйтесь telnet или ssh'
+
+        if 'huawei' in self.device["vendor"]:
+            logs = huawei.send_command(self.session, 'display logbuffer')
+        elif 'd-link' in self.device["vendor"]:
+            logs = d_link.send_command(self.session, 'show log', privilege_mode_password=self.privilege_mode_password,
+                                       next_catch=r'Command: show log')
+        elif 'cisco' in self.device["vendor"]:
+            logs = cisco.send_command(self.session, 'show logging')
+            point = re.search(r'Log Buffer \(\d+ bytes\):', logs)
+            logs = logs[point.end() if point else 0:]
+        elif 'ProCurve' in self.device["vendor"]:
+            logs = procurve.send_command(self.session, 'show logging')
+            point = re.search(r'D=Debug', logs)
+            logs = logs[point.end() if point else 0:]
+        elif 'zte' in self.device["vendor"]:
+            logs = zte.send_command(self.session, 'show terminal log')
+
+        return logs

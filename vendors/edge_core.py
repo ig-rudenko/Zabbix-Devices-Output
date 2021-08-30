@@ -1,51 +1,26 @@
-import pexpect
 from re import findall
 import sys
 import textfsm
-from core.intf_view import interface_normal_view
-
-root_dir = sys.path[0]
+from core.misc import interface_normal_view
+from core.commands import send_command as sendcmd
+from core.misc import filter_interface_mac
 
 
 def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
-    session.sendline(command)
-    session.expect(command[-30:])
-    if next_catch:
-        session.expect(next_catch)
-    output = ''
-    while True:
-        match = session.expect(
-            [
-                '---More---',
-                prompt,
-                pexpect.TIMEOUT
-            ]
-        )
-        output += str(session.before.decode('utf-8')).replace(
-            '\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08          \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08',
-            '').strip()
-        if match == 0:
-            session.sendline(' ')
-            output += '\n'
-        elif match == 1:
-            break
-        else:
-            print("    Ошибка: timeout")
-            break
-    return output
+    return sendcmd(session, command, prompt, space_prompt='---More---', before_catch=next_catch)
 
 
-def show_interfaces(telnet_session) -> list:
+def show_interfaces(session) -> list:
     output = send_command(
-        session=telnet_session,
+        session=session,
         command='show running-config',
     )
 
     des_output = send_command(
-        session=telnet_session,
+        session=session,
         command='show interfaces status'
     )
-    with open(f'{root_dir}/templates/interfaces/edge_core.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/interfaces/edge_core.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_des = int_des_.ParseText(des_output)  # Ищем интерфейсы
 
@@ -69,14 +44,14 @@ def show_interfaces(telnet_session) -> list:
     return result
 
 
-def show_device_info(telnet_session):
+def show_device_info(session):
     # VERSION
     system_info = send_command(
-        session=telnet_session,
+        session=session,
         command='show system'
     )
     version = send_command(
-        session=telnet_session,
+        session=session,
         command='show version'
     )
 
@@ -84,44 +59,29 @@ def show_device_info(telnet_session):
     return info
 
 
-def show_mac(telnet_session, interfaces: list, desc_filter: str):
-    intf_to_check = []  # Интерфейсы для проверки
+def show_mac(session, interfaces: list, desc_filter: str):
     mac_output = ''  # Вывод MAC
-    not_uplinks = True if desc_filter == 'only-abonents' else False
 
-    for line in interfaces:
-        if (
-                (not not_uplinks and bool(findall(desc_filter, line[3])))  # интерфейсы по фильтру
-                or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
-                    'SVSL' not in line[3].upper() and 'BOX' not in line[3].upper() and
-                    # - интерфейсов, которые содержат "SVSL" или "box"
-                    'POWER_MONITORING' not in line[3].upper())  # - НЕ POWER_MONITORING
-                and not ('down' in line[2].lower() and not line[3])  # - пустые интерфейсы с LinkDown
-                and 'down' not in line[1].lower()  # И только интерфейсы со статусом admin up
-                and 'VL' not in line[0].upper()  # И не VLAN'ы
-        ):  # Если описание интерфейсов удовлетворяет фильтру
-            intf_to_check.append([line[0], line[3]])
+    # Оставляем только необходимые порты для просмотра MAC
+    intf_to_check, status = filter_interface_mac(interfaces, interface_filter)
     if not intf_to_check:
-        if not_uplinks:
-            return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
-        else:
-            return f'Ни один из портов не прошел проверку фильтра "{desc_filter}" ' \
-                   f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
+        return status
+
     for interface in intf_to_check:
         separator_str = '─' * len(f'Интерфейс: {interface_normal_view(interface[1])}')
         mac_output += f'\n\n    Интерфейс: {interface_normal_view(interface[1])}\n' \
                       f'    {separator_str}\n'
         mac_output += send_command(
-            session=telnet_session,
+            session=session,
             command=f'show mac-address-table interface {interface_normal_view(interface[0])}'
         )
     return mac_output
 
 
-def show_vlan(telnet_session, interfaces: list):
+def show_vlan(session, interfaces: list):
     result = []
     running_config = send_command(
-        session=telnet_session,
+        session=session,
         command='show running-config'
     )
     intf_from_config = findall(r'(interface (.+\n)+?!)', running_config)
@@ -147,10 +107,10 @@ def show_vlan(telnet_session, interfaces: list):
                 result.append(line + [vlans_compact_str])
 
     vlan_info = send_command(
-        session=telnet_session,
+        session=session,
         command='show vlan'
     )
-    with open(f'{root_dir}/templates/vlans_templates/edge_core.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/vlans_templates/edge_core.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)
         vlans_info_table = vlans_info_template.ParseText(vlan_info)  # Ищем интерфейсы
     return vlans_info_table, result

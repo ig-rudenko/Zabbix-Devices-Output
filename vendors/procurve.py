@@ -2,28 +2,12 @@ import pexpect
 from re import findall
 import sys
 import textfsm
+from core.commands import send_command as sendcmd
 
 
-def send_command(session, command: str, prompt=None):
-    if prompt is None:
-        prompt = r"\S+#"
-    session.sendline(command)
-    output = ''
-    while True:
-        match = session.expect(
-            [
-                r"-- MORE --, next page: Space, next line: Enter, quit: Control-C",
-                prompt,
-                pexpect.TIMEOUT
-            ]
-        )
-        output += str(session.before.decode('utf-8'))
-        if match == 0:
-            session.send(' ')
-            output += '\n'
-        if match >= 1:
-            break
-    return output
+def send_command(session, command: str, prompt=r"\S+#"):
+    return sendcmd(session, command, prompt,
+                   space_prompt=r"-- MORE --, next page: Space, next line: Enter, quit: Control-C")
 
 
 def show_interfaces(session) -> list:

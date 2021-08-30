@@ -1,33 +1,12 @@
-import pexpect
+
 import sys
 import textfsm
-
-root_dir = sys.path[0]
+from core.commands import send_command as sendcmd
 
 
 def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: str = None):
-    session.sendline(command)
-    session.expect(command)
-    if next_catch:
-        session.expect(next_catch)
-    output = ''
-    while True:
-        match = session.expect(
-            [
-                r'More: <space>,  Quit: q, One line: <return> ',
-                prompt,
-                pexpect.TIMEOUT
-            ]
-        )
-        output += session.before.decode('utf-8').strip()
-        if match == 0:
-            session.send(' ')
-        elif match == 1:
-            break
-        else:
-            print("    Ошибка: timeout")
-            break
-    return output
+    return sendcmd(session, command, prompt, space_prompt=r'More: <space>,  Quit: q, One line: <return> ',
+                   before_catch=next_catch)
 
 
 def show_interfaces(telnet_session) -> list:
@@ -36,7 +15,7 @@ def show_interfaces(telnet_session) -> list:
         command='show interfaces configuration'
     )
     # Description
-    with open(f'{root_dir}/templates/interfaces/alcatel_linksys.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/interfaces/alcatel_linksys.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_state = int_des_.ParseText(port_state)  # Ищем интерфейсы
 
@@ -44,7 +23,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show interfaces description'
     )
-    with open(f'{root_dir}/templates/interfaces/alcatel_linksys2.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/interfaces/alcatel_linksys2.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_des = int_des_.ParseText(port_desc)  # Ищем интерфейсы
 
@@ -53,7 +32,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show interfaces status'
     )
-    with open(f'{root_dir}/templates/interfaces/alcatel_linksys_link.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/interfaces/alcatel_linksys_link.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_link = int_des_.ParseText(port_status)  # Ищем интерфейсы
 

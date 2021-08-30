@@ -1,20 +1,15 @@
 from re import findall, sub
 import sys
 import textfsm
-from core.intf_view import interface_normal_view
-
-root_dir = sys.path[0]
+from core.misc import interface_normal_view
+from core.commands import send_command as sendcmd
+from core.misc import filter_interface_mac
 
 
 def send_command(session, command: str, privilege_mode_password: str, prompt: str = r'\S+#', next_catch: str = None):
     if not enable_admin(session, privilege_mode_password):
         return ''
-    session.sendline(command)
-    session.expect(command)
-    if next_catch:
-        session.expect(next_catch)
-    session.expect(prompt)
-    return session.before.decode('utf-8')
+    return sendcmd(session, command, prompt, before_catch=next_catch)
 
 
 def enable_admin(session, privilege_mode_password: str) -> bool:
@@ -43,45 +38,30 @@ def enable_admin(session, privilege_mode_password: str) -> bool:
     return status
 
 
-def show_interfaces(telnet_session, privilege_mode_password: str) -> list:
-    if not enable_admin(telnet_session, privilege_mode_password):
+def show_interfaces(session, privilege_mode_password: str) -> list:
+    if not enable_admin(session, privilege_mode_password):
         return []
-    telnet_session.sendline("show ports des")
-    telnet_session.expect('#')
-    output = telnet_session.before.decode('utf-8')
-    with open(f'{root_dir}/templates/interfaces/d-link.template', 'r') as template_file:
+    session.sendline("show ports des")
+    session.expect('#')
+    output = session.before.decode('utf-8')
+    with open(f'{sys.path[0]}/templates/interfaces/d-link.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
     return result
 
 
-def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
-    intf_to_check = []
+def show_mac(session, interfaces: list, interface_filter: str) -> str:
     mac_output = ''
-    not_uplinks = True if interface_filter == 'only-abonents' else False
 
-    for line in interfaces:
-        if (
-                (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
-                or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
-                    'SVSL' not in line[3].upper() and  # - интерфейсов, которые содержат "SVSL"
-                    'POWER_MONITORING' not in line[3].upper())  # - POWER_MONITORING
-                and not ('down' in line[2].lower() and not line[3])  # - пустые интерфейсы с LinkDown
-                and 'disabled' not in line[1].lower()  # И только интерфейсы со статусом admin up
-        ):  # Если описание интерфейсов удовлетворяет фильтру
-            intf_to_check.append([line[0], line[3]])
-
+    # Оставляем только необходимые порты для просмотра MAC
+    intf_to_check, status = filter_interface_mac(interfaces, interface_filter)
     if not intf_to_check:
-        if not_uplinks:
-            return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
-        else:
-            return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
-                   f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
+        return status
 
     for intf in intf_to_check:
-        telnet_session.sendline(f'show fdb port {interface_normal_view(intf[0])}')
-        telnet_session.expect('#')
-        mc_output = sub(r'[\W\S]+VID', 'VID', str(telnet_session.before.decode('utf-8')))
+        session.sendline(f'show fdb port {interface_normal_view(intf[0])}')
+        session.expect('#')
+        mc_output = sub(r'[\W\S]+VID', 'VID', str(session.before.decode('utf-8')))
         mc_output = sub(r'Total Entries[\s\S]+', ' ', mc_output)
         separator_str = '─' * len(f'Интерфейс: {intf[0]} ({intf[1]})')
         mac_output += f"\n    Интерфейс: {intf[0]} ({intf[1]})\n    {separator_str}\n{mc_output}"
@@ -90,37 +70,37 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
     return mac_output
 
 
-def show_device_info(telnet_session, privilege_mode_password: str):
+def show_device_info(session, privilege_mode_password: str):
     info = ''
-    if not enable_admin(telnet_session, privilege_mode_password):
+    if not enable_admin(session, privilege_mode_password):
         return
 
     # VERSION
-    telnet_session.sendline('show switch')
-    telnet_session.expect('Command: show switch')
-    telnet_session.expect('\S+#')
-    info += telnet_session.before.decode('utf-8')
+    session.sendline('show switch')
+    session.expect('Command: show switch')
+    session.expect('\S+#')
+    info += session.before.decode('utf-8')
     info += ''
 
     # CPU
-    telnet_session.sendline('show utilization cpu')
-    telnet_session.expect('Command: show utilization cpu\W+')
-    telnet_session.expect('\S+#')
+    session.sendline('show utilization cpu')
+    session.expect('Command: show utilization cpu\W+')
+    session.expect('\S+#')
     info += '   ┌──────────────┐\n'
     info += '   │ ЗАГРУЗКА CPU │\n'
     info += '   └──────────────┘\n'
-    info += telnet_session.before.decode('utf-8')
+    info += session.before.decode('utf-8')
     return info
 
 
-def show_cable_diagnostic(telnet_session, privilege_mode_password: str):
+def show_cable_diagnostic(session, privilege_mode_password: str):
     info = ''
-    enable_admin(telnet_session, privilege_mode_password)
+    enable_admin(session, privilege_mode_password)
 
     # CABLE_DIAGNOSTIC
-    telnet_session.sendline('cable_diag ports all')
-    telnet_session.expect('Perform Cable Diagnostics ...\W+')
-    telnet_session.expect('\S+#')
+    session.sendline('cable_diag ports all')
+    session.expect('Perform Cable Diagnostics ...\W+')
+    session.expect('\S+#')
     info += '''
             ┌─────────────────────┐
             │ Диагностика кабелей │
@@ -132,11 +112,11 @@ def show_cable_diagnostic(telnet_session, privilege_mode_password: str):
     Link Down, No Cable — нет кабеля
 
     '''
-    info += telnet_session.before.decode('utf-8')
+    info += session.before.decode('utf-8')
     return info
 
 
-def show_vlans(telnet_session, interfaces: list, privilege_mode_password: str) -> tuple:
+def show_vlans(session, interfaces: list, privilege_mode_password: str) -> tuple:
 
     def range_to_numbers(ports_string: str) -> list:
         ports_split = ports_string.split(',')
@@ -151,11 +131,11 @@ def show_vlans(telnet_session, interfaces: list, privilege_mode_password: str) -
 
         return sorted(res_ports)
 
-    enable_admin(telnet_session, privilege_mode_password)
-    telnet_session.sendline('show vlan')
-    telnet_session.expect('#', timeout=20)
-    output = telnet_session.before.decode('utf-8')
-    with open(f'{root_dir}/templates/vlans_templates/d-link.template', 'r') as template_file:
+    enable_admin(session, privilege_mode_password)
+    session.sendline('show vlan')
+    session.expect('#', timeout=20)
+    output = session.before.decode('utf-8')
+    with open(f'{sys.path[0]}/templates/vlans_templates/d-link.template', 'r') as template_file:
         vlan_templ = textfsm.TextFSM(template_file)
         result_vlan = vlan_templ.ParseText(output)
     # сортируем и выбираем уникальные номера портов из списка интерфейсов

@@ -24,8 +24,8 @@ def parse_argument():
     parser.add_argument("-c", dest='snmp_community', help="SNMP v2c community", default='public')
     parser.add_argument("--snmp-port", dest='snmp_port', help='SNMP v2c port (default 161)', default='161', metavar='')
     parser.add_argument("-m", "--mode", dest="mode", nargs='*',
-                        help="Output (show-interfaces, vlan, mac, sys-info, cable-diagnostic)", default='',
-                        choices=['show-interfaces', 'vlan', 'mac', 'sys-info', 'cable-diagnostic'], metavar='')
+                        help="Output (show-interfaces, vlan, mac, sys-info, cable-diagnostic, logs)", default='',
+                        choices=['show-interfaces', 'vlan', 'mac', 'sys-info', 'cable-diagnostic', 'logs'], metavar='')
     parser.add_argument("--desc-filter", dest="description_filter", default=r'\S+',
                         help='Regular exception (default \'\\S+)\'')
     parser.add_argument("--auth-file", dest="auth_file", default=f'{sys.path[0]}/auth.yaml')
@@ -103,7 +103,8 @@ if __name__ == '__main__':
         zabbix_pass = config.get("Zabbix", "ZabbixAPIPassword")
 
         db = DataBase()
-        zabbix = ZabbixAPI(url=zabbix_url, user=zabbix_login, password=zabbix_pass)
+        zabbix = ZabbixAPI(zabbix_url)
+        zabbix.login(user=zabbix_login, password=zabbix_pass)
         groups_ids = zabbix.hostgroup.get(filter={"name": args.zabbix_rebase_groups})
         for group in groups_ids:
             hosts = zabbix.host.get(groupids=group['groupid'], selectInterfaces=['ip'])  # Список узлов сети в группе
@@ -195,3 +196,6 @@ if __name__ == '__main__':
 
         if 'sys-info' in args.mode:
             print(session.get_device_info())
+
+        if 'logs' in args.mode:
+            print(session.get_logs())

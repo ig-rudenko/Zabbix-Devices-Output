@@ -2,74 +2,33 @@ import pexpect
 from re import findall, sub
 import sys
 import textfsm
-from core.intf_view import interface_normal_view
-
-root_dir = sys.path[0]
+from core.misc import interface_normal_view
+from core.commands import send_command as sendcmd
+from core.misc import filter_interface_mac
 
 
 def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
-    output = ''
-    session.sendline(command)
-    session.expect(command[-30:-3])
-    if next_catch:
-        session.expect(next_catch)
-    while True:
-        match = session.expect(
-            [
-                prompt,             # 0 - конец
-                "--More--",         # 1 - далее
-                pexpect.TIMEOUT     # 2
-            ]
-        )
-        page = str(session.before.decode('utf-8')).replace("[42D", '').replace(
-            "        ", '')
-        output += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            session.send(" ")
-            output += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
-    return output
+    return sendcmd(session, command, prompt=prompt, space_prompt="--More--", before_catch=next_catch)
 
 
-def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
+def show_mac(session, interfaces: list, interface_filter: str) -> str:
+    mac_output = ''
 
-    intf_to_check = []  # Интерфейсы для проверки
-    mac_output = ''  # Вывод MAC
-    not_uplinks = True if interface_filter == 'only-abonents' else False
-
-    for line in interfaces:
-        if (
-                (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
-                or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
-                    'SVSL' not in line[3].upper() and  # - интерфейсов, которые содержат "SVSL"
-                    'POWER_MONITORING' not in line[3].upper())  # - POWER_MONITORING
-                and not ('down' in line[2].lower() and not line[3])  # - пустые интерфейсы с LinkDown
-                and 'down' not in line[1].lower()  # И только интерфейсы со статусом admin up
-                and 'VL' not in line[0].upper()  # И не VLAN'ы
-        ):  # Если описание интерфейсов удовлетворяет фильтру
-            intf_to_check.append([line[0], line[3]])
-
+    # Оставляем только необходимые порты для просмотра MAC
+    intf_to_check, status = filter_interface_mac(interfaces, interface_filter)
     if not intf_to_check:
-        if not_uplinks:
-            return 'Порты абонентов не были найдены либо имеют статус admin down (в этом случае MAC\'ов нет)'
-        else:
-            return f'Ни один из портов не прошел проверку фильтра "{interface_filter}" ' \
-                   f'либо имеет статус admin down (в этом случае MAC\'ов нет)'
+        return status
 
     for intf in intf_to_check:  # для каждого интерфейса
-        telnet_session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
-        telnet_session.expect(f'-------------------')
-        telnet_session.expect('Vla')
+        session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
+        session.expect(f'-------------------')
+        session.expect('Vla')
         separator_str = '─' * len(f'Интерфейс: {interface_normal_view(intf[1])}')
         mac_output += f'\n    Интерфейс: {interface_normal_view(intf[1])}\n' \
                       f'    {separator_str}\n' \
                       f'Vla'
         while True:
-            match = telnet_session.expect(
+            match = session.expect(
                 [
                     'Total Mac Addresses',  # 0 - найдены все MAC адреса
                     r'#$',                  # 1 - конец
@@ -77,13 +36,13 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
                     pexpect.TIMEOUT         # 3
                 ]
             )
-            page = str(telnet_session.before.decode('utf-8')).replace("[42D", '').replace(
+            page = str(session.before.decode('utf-8')).replace("[42D", '').replace(
                 "        ", '')
             mac_output += page.strip()
             if match <= 1:
                 break
             elif match == 2:
-                telnet_session.send(" ")
+                session.send(" ")
                 mac_output += '\n'
             else:
                 print("    Ошибка: timeout")
@@ -92,22 +51,22 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
     return mac_output
 
 
-def show_interfaces(telnet_session) -> list:
+def show_interfaces(session) -> list:
     output = send_command(
-        session=telnet_session,
+        session=session,
         command='show int des'
     )
     output = sub('.+\nInterface', 'Interface', output)
-    with open(f'{root_dir}/templates/interfaces/cisco.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/interfaces/cisco.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
 
     return [line for line in result if not line[0].startswith('V')]
 
 
-def get_device_info(telnet_session):
+def get_device_info(session):
     version = send_command(
-        session=telnet_session,
+        session=session,
         command='show version'
     )
     version = sub(r'\W+This product [\W\S]+cisco\.com\.', '', version)
@@ -115,12 +74,12 @@ def get_device_info(telnet_session):
 
     # ENVIRONMENT
     environment = send_command(
-        session=telnet_session,
+        session=session,
         command='show environment'
     )
     if 'Invalid input' in environment:
         environment = send_command(
-            session=telnet_session,
+            session=session,
             command='show env all'
         )
     environment = f"""
@@ -135,12 +94,12 @@ def get_device_info(telnet_session):
 
     # INVENTORY
     inventory = send_command(
-            session=telnet_session,
+            session=session,
             command='show inventory oid'
         )
     if findall(r'Invalid input|% No entity', inventory):
         inventory = send_command(
-            session=telnet_session,
+            session=session,
             command='show inventory'
         )
     inventory = f"""
@@ -155,7 +114,7 @@ def get_device_info(telnet_session):
 
     # SNMP
     snmp_info = send_command(
-            session=telnet_session,
+            session=session,
             command='show snmp'
         )
     version += f"""
@@ -166,7 +125,7 @@ def get_device_info(telnet_session):
 """
     # IDPROMs
     extended_tech_info = send_command(
-            session=telnet_session,
+            session=session,
             command='show idprom all'
         )
 
@@ -187,12 +146,12 @@ def get_device_info(telnet_session):
     return version
 
 
-def show_vlans(telnet_session, interfaces) -> tuple:
+def show_vlans(session, interfaces) -> tuple:
     result = []
     for line in interfaces:
         if not line[0].startswith('V'):
             output = send_command(
-                session=telnet_session,
+                session=session,
                 command=f"show running-config interface {interface_normal_view(line[0])}",
                 next_catch="Building configuration"
             )
@@ -213,10 +172,10 @@ def show_vlans(telnet_session, interfaces) -> tuple:
             result.append(line + [vlans_compact_str])
 
     vlans_info = send_command(
-        session=telnet_session,
+        session=session,
         command='show vlan brief'
     )
-    with open(f'{root_dir}/templates/vlans_templates/cisco_vlan_info.template', 'r') as template_file:
+    with open(f'{sys.path[0]}/templates/vlans_templates/cisco_vlan_info.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)
         vlans_info_table = vlans_info_template.ParseText(vlans_info)  # Ищем интерфейсы
 
