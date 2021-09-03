@@ -8,7 +8,9 @@ from core.misc import filter_interface_mac
 
 
 def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: str = None):
-    return sendcmd(session, command, prompt, space_prompt=r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> ",
+    return sendcmd(session, command, prompt,
+                   space_prompt=r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> |"
+                                r"More\? Enter - next line; Space - next page; Q - quit; R - show the rest\.",
                    before_catch=next_catch)
 
 

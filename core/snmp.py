@@ -8,7 +8,8 @@ snmp_result = {
     "IF-MIB::ifAdminStatus": {},
     "IF-MIB::ifOperStatus": {},
     "IF-MIB::ifDescr": {},
-    "IF-MIB::ifAlias": {}
+    "IF-MIB::ifAlias": {},
+    "SNMPv2-MIB::sysName.0": {}
 }
 
 

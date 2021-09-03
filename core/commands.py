@@ -5,13 +5,21 @@ def strip_text(text: str) -> str:
     return text.replace("[42D", '').replace("        ", '').replace(
             "\x1b[m\x1b[60;D\x1b[K", '').replace(
             '\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08          \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08',
-            '').strip()
+            '').replace('[81D[32C[80D[27C[1A[J', '').replace('[81D[35C', '').replace('[81D[34C', '').strip()
+
+
+def format_command(command: str) -> str:
+    symbols = ['.', '|', '?', '(', ')', '[', ']', '+', '*']
+    for letter in command:
+        if letter in symbols:
+            command = command.replace(letter, f'\\'+letter)
+    return command
 
 
 def send_command(session, command: str, prompt: str, space_prompt: str = None, before_catch: str = None) -> str:
     output = ''
     session.sendline(command)   # Отправляем команду
-    session.expect(command[-30:-3])  # Считываем введенную команду с поправкой по длине символов
+    session.expect(command[-30:])  # Считываем введенную команду с поправкой по длине символов
     if before_catch:
         session.expect(before_catch)
     if space_prompt:    # Если необходимо постранично считать данные, то создаем цикл
