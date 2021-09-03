@@ -147,15 +147,17 @@ if __name__ == '__main__':
     parser.add_argument('-F', '--find', dest='find', help='regular exception for port description find', metavar='')
     args = parser.parse_args()
 
-    start_device = args.start_device
-    if args.vlan and start_device:
+    if args.vlan and args.start_device:
         try:
+            if os.path.exists(f'{sys.path[0]}/vlan_traceroute/vlan_name.yaml'):
+                with open(f'{sys.path[0]}/vlan_traceroute/vlan_name.yaml') as vlan_name_file:
+                    vlan_name = yaml.safe_load(vlan_name_file)
             passed = set()
-            print(f'🔎  Начинаем трассировку VLAN > {args.vlan} <\n\n'
+            print(f'🔎  Начинаем трассировку VLAN > {args.vlan} <  {vlan_name.get(args.vlan) or ""}\n\n'
                   f'     ┌─ Начальное оборудование')
-            status, _ = find_vlan(start_device, args.vlan, passed_devices=passed, mode=args.mode, desc_re=args.find)
+            status, _ = find_vlan(args.start_device, args.vlan, passed_devices=passed, mode=args.mode, desc_re=args.find)
             if not status:
-                print(f'     └ {start_device} Не найдено!')
+                print(f'     └ {args.start_device} Не найдено!')
             else:
                 print(f'\nТрассировка завершена!')
         except KeyboardInterrupt:
