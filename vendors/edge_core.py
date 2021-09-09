@@ -39,7 +39,11 @@ def show_interfaces(session) -> list:
             link_stat = 'Down'
         if 'VLAN' not in interface:
             result.append(
-                [interface, admin_status, link_stat, description]
+                [
+                    interface,
+                    link_stat.lower() if admin_status == 'up' else admin_status,
+                    description
+                ]
             )
     return result
 

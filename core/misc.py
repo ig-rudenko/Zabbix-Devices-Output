@@ -32,13 +32,13 @@ def filter_interface_mac(interfaces: list, interface_filter: str) -> tuple:
         if (
                 (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
                 or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
-                    'SVSL' not in line[3].upper() and  # - интерфейсов, которые содержат "SVSL"
-                    'POWER_MONITORING' not in line[3].upper())  # - POWER_MONITORING
-                and not ('down' in line[2].lower() and not line[3])  # - пустые интерфейсы с LinkDown
-                and 'down' not in line[1].lower()  # И только интерфейсы со статусом admin up
+                    'SVSL' not in line[2].upper() and  # - интерфейсов, которые содержат "SVSL"
+                    'POWER_MONITORING' not in line[2].upper())  # - POWER_MONITORING
+                and not ('down' in line[1].lower() and not line[2])  # - пустые интерфейсы с LinkDown
+                and 'admin down' not in line[1].lower()  # И только интерфейсы со статусом admin up
                 and 'VL' not in line[0].upper()  # И не VLAN'ы
         ):  # Если описание интерфейсов удовлетворяет фильтру
-            intf_to_check.append([line[0], line[3]])
+            intf_to_check.append([line[0], line[2]])
 
     status = 'done'
     if not intf_to_check:

@@ -51,7 +51,14 @@ def show_interfaces(telnet_session) -> list:
     with open(f'{sys.path[0]}/templates/interfaces/q-tech.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-    return result
+    return [
+        [
+            line[0],
+            line[1].lower().replace('a-', 'admin '),
+            line[2]
+        ]
+        for line in result
+    ]
 
 
 def show_device_info(telnet_session):

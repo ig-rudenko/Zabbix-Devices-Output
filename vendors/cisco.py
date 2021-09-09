@@ -60,8 +60,14 @@ def show_interfaces(session) -> list:
     with open(f'{sys.path[0]}/templates/interfaces/cisco.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-
-    return [line for line in result if not line[0].startswith('V')]
+    return [
+        [
+            line[0],    # interface
+            line[2].lower() if 'up' in line[1].lower() else line[1].lower(),  # status
+            line[3]     # desc
+        ]
+        for line in result if not line[0].startswith('V')
+    ]
 
 
 def get_device_info(session):

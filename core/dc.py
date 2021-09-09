@@ -79,7 +79,7 @@ class DeviceConnect:
         self.auth_file = auth_file
         self.auth_group = auth_group
 
-        if self.auth_mode.lower() == 'group':
+        if self.auth_mode.lower() == 'group' or auth_group:
             try:
                 with open(self.auth_file, 'r') as file:
                     auth_dict = yaml.safe_load(file)
@@ -280,7 +280,7 @@ class DeviceConnect:
             self.device["model"] = model[0]
         return self.device["vendor"]
 
-    def connect(self, protocol: str, algorithm: str = '', cipher: str = '') -> bool:
+    def connect(self, protocol: str, algorithm: str = '', cipher: str = '', timeout: int = 30) -> bool:
         if self.auth_mode == 'snmp' or protocol == 'snmp':
             if not self.device.get("snmp_community") or not self.device.get("snmp_port"):
                 self.set_authentication(mode='snmp')
@@ -311,7 +311,7 @@ class DeviceConnect:
                             r'[#>\]]\s*$',                                      # 4
                             r'Connection closed'                                # 5
                         ],
-                        timeout=20
+                        timeout=timeout
                     )
                     if login_stat == 0:
                         self.session.expect(pexpect.EOF)
@@ -362,7 +362,7 @@ class DeviceConnect:
                                 r'[#>\]]\s*$',                  # 6
                                 r'Press any key to continue'    # 7
                             ],
-                            timeout=20
+                            timeout=timeout
                         )
                         if login_stat == 7:  # Если необходимо нажать любую клавишу, чтобы продолжить
                             self.session.send(' ')
@@ -437,68 +437,42 @@ class DeviceConnect:
         # SSH / TELNET
         if 'ProCurve' in self.device["vendor"]:
             self.raw_interfaces = procurve.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+
         if 'cisco' in self.device["vendor"]:
             self.raw_interfaces = cisco.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+
         if 'd-link' in self.device["vendor"]:
             self.raw_interfaces = d_link.show_interfaces(self.session, self.privilege_mode_password)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+
         if 'huawei' in self.device["vendor"]:
             if self.device.get("software") == ['V100R005C01SPC100']:
                 self.raw_interfaces = huawei.show_interfaces_split_version(self.session, self.privilege_mode_password)
             else:
                 self.raw_interfaces = huawei.show_interfaces(self.session, self.privilege_mode_password)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Port Status': line[1], 'Description': line[2]}
-                for line in self.raw_interfaces
-            ]
+
         if 'zte' in self.device["vendor"]:
             self.raw_interfaces = zte.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
-            interfaces_list = alcatel_linksys.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in interfaces_list
-            ]
+            self.raw_interfaces = alcatel_linksys.show_interfaces(self.session)
+
         if 'edge-core' in self.device["vendor"]:
             self.raw_interfaces = edge_core.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+
         if 'eltex' in self.device["vendor"]:
-            self.raw_interfaces = eltex.show_interfaces(self.session, eltex_type=self.device["vendor"]
-            )
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+            self.raw_interfaces = eltex.show_interfaces(self.session, eltex_type=self.device["vendor"])
+
         if 'extreme' in self.device["vendor"]:
             self.raw_interfaces = extreme.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3]}
-                for line in self.raw_interfaces
-            ]
+
         if 'q-tech' in self.device["vendor"]:
             self.raw_interfaces = qtech.show_interfaces(self.session)
-            self.device["interfaces"] = [
-                {'Interface': line[0], 'Link Status': line[1], 'Description': line[2]}
-                for line in self.raw_interfaces
-            ]
+
+        self.device["interfaces"] = [
+            {'Interface': line[0], 'Status': line[1], 'Description': line[2]}
+            for line in self.raw_interfaces if self.raw_interfaces
+        ]
+
         self.collect_data(
             mode='interfaces',
             data={

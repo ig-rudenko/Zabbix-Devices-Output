@@ -38,10 +38,13 @@ def show_interfaces(telnet_session) -> list:
 
     result = []
     for postition, line in enumerate(result_port_state):
-        result.append([line[0],  # interface
-                       line[1],  # admin status
-                       result_port_link[postition][0],  # link
-                       result_port_des[postition][0]])  # description
+        result.append(
+            [
+                line[0],  # interface
+                result_port_link[postition][0].lower() if 'Up' in line[1] else 'admin down',  # status
+                result_port_des[postition][0]   # description
+            ]
+        )
     return result
 
 

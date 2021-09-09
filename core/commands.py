@@ -16,12 +16,16 @@ def format_command(command: str) -> str:
     return command
 
 
-def send_command(session, command: str, prompt: str, space_prompt: str = None, before_catch: str = None) -> str:
+def send_command(session, command: str, prompt: str, space_prompt: str = None, before_catch: str = None,
+                 expect_command=True) -> str:
     output = ''
     session.sendline(command)   # Отправляем команду
-    session.expect(command[-30:])  # Считываем введенную команду с поправкой по длине символов
+
+    if expect_command:
+        session.expect(command[-30:])  # Считываем введенную команду с поправкой по длине символов
     if before_catch:
         session.expect(before_catch)
+
     if space_prompt:    # Если необходимо постранично считать данные, то создаем цикл
         while True:
             match = session.expect(

@@ -15,7 +15,14 @@ def show_interfaces(session) -> list:
     with open(f'{sys.path[0]}/templates/interfaces/zte.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-    return result
+    return [
+        [
+            line[0],    # interface
+            line[2] if 'enabled' in line[1] else 'admin down',  # status
+            line[3]     # desc
+        ]
+        for line in result
+    ]
 
 
 def show_mac(session, interfaces: list, interface_filter: str, model: str):

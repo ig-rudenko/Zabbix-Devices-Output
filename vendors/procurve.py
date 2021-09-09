@@ -1,4 +1,3 @@
-import pexpect
 from re import findall
 import sys
 import textfsm
@@ -6,7 +5,7 @@ from core.commands import send_command as sendcmd
 
 
 def send_command(session, command: str, prompt=r"\S+#"):
-    return sendcmd(session, command, prompt,
+    return sendcmd(session, command, prompt, expect_command=False,
                    space_prompt=r"-- MORE --, next page: Space, next line: Enter, quit: Control-C")
 
 
@@ -26,8 +25,7 @@ def show_interfaces(session) -> list:
         result.append(
             [
                 line[0],
-                "Up" if line[1] == "Yes" else "Down",
-                line[2],
+                line[2].lower() if line[1] == "Yes" else "admin down",
                 descr[0][1:] if descr else ''
             ]
         )

@@ -59,7 +59,14 @@ def show_interfaces(telnet_session) -> list:
         result_des = int_des_.ParseText(output_des)  # Ищем desc
 
     result = [result_port_state[n] + result_des[n] for n in range(len(result_port_state))]
-    return result
+    return [
+        [
+            line[0],    # interface
+            line[2].replace('ready', 'down').replace('active', 'up') if 'Enabled' in line[1] else 'admin down', # status
+            line[3]     # desc
+        ]
+        for line in result
+    ]
 
 
 def show_device_info(telnet_session):

@@ -38,6 +38,7 @@ def send_command(session, command: str, prompt=r'<\S+>$') -> str:
 
 def show_mac_huawei(session, interfaces: list, interface_filter: str, privilege_mode_password: str) -> str:
     mac_output = ''  # Вывод MAC
+    huawei_type = login(session, privilege_mode_password)
 
     # Оставляем только необходимые порты для просмотра MAC
     intf_to_check, status = filter_interface_mac(interfaces, interface_filter)
@@ -50,16 +51,17 @@ def show_mac_huawei(session, interfaces: list, interface_filter: str, privilege_
 
         if huawei_type == 'huawei-2403':
             session.sendline(f'display mac-address interface {interface_normal_view(intf[0])}')
-        separator_str = '─' * len(f'Интерфейс: {intf[1].strip()}')
+        separator_str = '─' * len(f'Интерфейс: ({intf[0].strip()}) {intf[1].strip()}')
         session.expect(f'{interface_normal_view(intf[0])}')
 
-        mac_output += f'\n    Интерфейс: {intf[1].strip()}\n    {separator_str}\n'
+        mac_output += f'\n    Интерфейс: ({intf[0].strip()}) {intf[1].strip()}\n    {separator_str}\n'
         while True:
             match = session.expect(
                 [
-                    r'<\S+>$' if huawei_type == 'huawei-2326' else '  ---  ',   # 0 - конец вывода
-                    "  ---- More ----",                                         # 1 - продолжаем
-                    pexpect.TIMEOUT                                             # 2
+                    r'<\S+>$' if huawei_type == 'huawei-2326' else r'  ---  ',  # 0 - конец вывода
+                    r"  ---- More ----",                                        # 1 - продолжаем
+                    r'No Mac address',                                          # 2
+                    pexpect.TIMEOUT
                 ]
             )
             page = str(session.before.decode('utf-8'))
@@ -69,6 +71,9 @@ def show_mac_huawei(session, interfaces: list, interface_filter: str, privilege_
             elif match == 1:
                 session.send(" ")
                 mac_output += '\n'
+            elif match == 2:
+                mac_output += 'No Mac address'
+                break
             else:
                 print("    Ошибка: timeout")
                 break
@@ -120,7 +125,14 @@ def show_interfaces(session, privilege_mode_password: str) -> list:
     with open(f'{sys.path[0]}/templates/interfaces/{huawei_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-    return [line for line in result if not line[0].startswith('NULL') and not line[0].startswith('V')]
+    return [
+        [
+            line[0],    # interface
+            line[1].lower().replace('adm', 'admin').replace('*', 'admin '),    # status
+            line[2]     # desc
+        ]
+        for line in result if not line[0].startswith('NULL') and not line[0].startswith('V')
+    ]
 
 
 def show_device_info(session, privilege_mode_password: str):

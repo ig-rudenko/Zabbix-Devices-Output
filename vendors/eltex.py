@@ -14,7 +14,7 @@ def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: s
                    before_catch=next_catch)
 
 
-def show_interfaces(session, eltex_type: str = 'eltex-mes') -> str:
+def show_interfaces(session, eltex_type: str = 'eltex-mes') -> list:
     session.sendline("show int des")
     session.expect("show int des")
     output = ''
@@ -41,7 +41,14 @@ def show_interfaces(session, eltex_type: str = 'eltex-mes') -> str:
     with open(f'{sys.path[0]}/templates/interfaces/{eltex_type}.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result = int_des_.ParseText(output)  # Ищем интерфейсы
-    return result
+    return [
+        [
+            line[0],    # interface
+            line[2].lower() if 'up' in line[1].lower() else 'admin down',  # status
+            line[3]     # desc
+        ]
+        for line in result if not line[0].startswith('V')
+    ]
 
 
 def show_mac(session, interfaces: list, interface_filter: str, eltex_type: str = 'eltex-mes') -> str:
