@@ -275,6 +275,8 @@ class DeviceConnect:
                     break
             if 'ZyNOS version' in version:
                 self.device["vendor"] = 'zyxel'
+        if 'unknown keyword show' in version:
+            self.device['vendor'] = 'juniper'
 
         if model:
             self.device["model"] = model[0]
@@ -339,9 +341,6 @@ class DeviceConnect:
                         else:
                             break   # Пробуем новый логин/пароль
                     if login_stat == 4:
-                        # self.session.sendline('show')
-                        # self.session.expect(r'[#>\]]\s*$')
-                        # print(self.session.before.decode('utf-8'))
                         connected = True
                 if connected:
                     break
@@ -468,6 +467,9 @@ class DeviceConnect:
         if 'q-tech' in self.device["vendor"]:
             self.raw_interfaces = qtech.show_interfaces(self.session)
 
+        if 'juniper' in self.device['vendor']:
+            self.raw_interfaces = juniper.show_interfaces(self.session)
+
         self.device["interfaces"] = [
             {'Interface': line[0], 'Status': line[1], 'Description': line[2]}
             for line in self.raw_interfaces if self.raw_interfaces
@@ -556,65 +558,40 @@ class DeviceConnect:
         if self.auth_mode == 'snmp':
             return [{'!': 'Не поддерживается в данной версии'}]
 
+        vlans_last_result = []
+
         if not self.raw_interfaces:
             self.get_interfaces()
+
         if 'cisco' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = cisco.show_vlans(self.session, self.raw_interfaces)
-            self.vlans = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
-                 "VLAN's": line[4]}
-                for line in vlans_last_result
-            ]
         if 'd-link' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = d_link.show_vlans(
                 self.session,
                 interfaces=self.raw_interfaces,
                 privilege_mode_password=self.privilege_mode_password
             )
-            self.vlans = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
-                 "VLAN's": line[4]}
-                for line in vlans_last_result
-            ]
         if 'huawei' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = huawei.show_vlans(
                 self.session, self.raw_interfaces, self.privilege_mode_password
             )
-            self.vlans = [
-                {'Interface': line[0], 'Port Link': line[1], 'Description': line[2], "VLAN's": line[3]}
-                for line in vlans_last_result
-            ]
         if 'zte' in self.device["vendor"]:
             pass
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
             pass
         if 'edge-core' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = edge_core.show_vlan(self.session, self.raw_interfaces)
-            self.vlans = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
-                 "VLAN's": line[4]}
-                for line in vlans_last_result
-            ]
         if 'eltex' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = eltex.show_vlans(self.session, self.raw_interfaces)
-            self.vlans = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
-                 "VLAN's": line[4]}
-                for line in vlans_last_result
-            ]
         if 'extreme' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = extreme.show_vlans(self.session, self.raw_interfaces)
-            self.vlans = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Link': line[2], 'Description': line[3],
-                 "VLAN's": line[4]}
-                for line in vlans_last_result
-            ]
         if 'q-tech' in self.device["vendor"]:
             self.vlan_info, vlans_last_result = qtech.show_vlan(self.session, self.raw_interfaces)
-            self.vlans = [
-                {'Interface': line[0], 'Admin Status': line[1], 'Description': line[2], "VLAN's": line[3]}
-                for line in vlans_last_result
-            ]
+
+        self.vlans = [
+            {'Interface': line[0], 'Status': line[1], 'Description': line[2], "VLAN's": line[3]}
+            for line in vlans_last_result
+        ]
         self.collect_data(
             mode='vlans',
             data={

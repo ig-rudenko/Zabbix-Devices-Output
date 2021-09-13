@@ -7,26 +7,28 @@
 * Системная информация;
 * MAC-адреса на портах;
 * Диагностика кабелей;
-* VLAN на портах.
+* VLAN на портах;
+* Логи.
 
 ![img_1.png](img/img_1.png)
 ![img_2.png](img/img_2.png)
 
 ### Список поддерживаемых устройств и функционал
 
-| VENDOR  | interfaces | MAC | sys-info | vlans | cable-diag |
-| :----:|:----:|:---:|:----:|:----:|:----:|
-| Cisco     | ✅ | ✅ | ✅ | ✅ | - |
-| Huawei    | ✅ | ✅ | ✅ | ✅ | ✅ |
-| D-Link    | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Eltex     | ✅ | ✅ | ✅ | ✅ | - |
-| Edge-Core | ✅ | ✅ | ✅ | ✅ | - |
-| Extreme   | ✅ | ✅ | ✅ | ✅ | - |
-| Q-Tech    | ✅ | ✅ | ✅ | ✅ | - |
-| ZTE       | ✅ | ✅ | ✅ | - | - |
-| ProCurve  | ✅ | - | ✅ | - | - |
-| Alcatel   | ✅ | - | - | - | - |
-| Lynksys   | ✅ | - | - | - | - |
+| VENDOR  | interfaces | MAC | sys-info | vlans | cable-diag | Logs|
+| :----:|:----:|:---:|:----:|:----:|:----:|:---:|
+| Cisco     | ✅ | ✅ | ✅ | ✅ | - | ✅
+| Huawei    | ✅ | ✅ | ✅ | ✅ | ✅ | ✅
+| D-Link    | ✅ | ✅ | ✅ | ✅ | ✅ | ✅
+| Eltex     | ✅ | ✅ | ✅ | ✅ | - | -
+| Edge-Core | ✅ | ✅ | ✅ | ✅ | - | -
+| Extreme   | ✅ | ✅ | ✅ | ✅ | - | -
+| Q-Tech    | ✅ | ✅ | ✅ | ✅ | - | -
+| ZTE       | ✅ | ✅ | ✅ | - | - | ✅
+| ProCurve  | ✅ | - | ✅ | - | - | ✅
+| Alcatel   | ✅ | - | - | - | - | -
+| Lynksys   | ✅ | - | - | - | - | -
+| Juniper   | ✅ | - | - | - | - | -
 
 
 
@@ -51,7 +53,7 @@ GROUPS:
 
 Добавляем глобальный скрипт в Zabbix
 
-    /home/Zabbix-Devices-Output/device_control.py -N '{HOST.NAME}' -i {HOST.CONN} -m show-interfaces --auth-group {AUTH_GROUP} -P ssh
+    /home/Zabbix-Devices-Output/device_control.py -N '{HOST.NAME}' -i {HOST.CONN} -m show-interfaces --auth-group {$AUTH_GROUP} -P ssh
 
 Указываем полный путь до скрипта, а в качестве переменных необходимые макросы
 
@@ -165,6 +167,13 @@ saved time: 28 Aug 2021, 03:00:23
 ```yaml
 Shevch: Shevchenko
 Vakulench: Vakulenchuka
+```
+
+В файле `/vlan_traceroute/vlan_name.yaml` можно указать vlan и его описание
+```yaml
+412: corp
+700: For users
+100: management
 ```
 
 ## Рассмотрим работу скрипта
@@ -293,24 +302,23 @@ session.connect(protocol='ssh')
 #### Пример работы программы
     
 
-    $ ./telnet_control/device_control.py -N device_name -i 192.168.1.10 -m show-interfaces
+    $ device-control -N device_name -i 192.168.1.10 -m show-interfaces
         
         Подключаемся к device_name (192.168.1.10)
     
         Тип оборудования: Cisco
     
-    ╒═════════════╤════════════╤════════╤═════════════╕
-    │             │ Admin      │        │             │
-    │ Interface   │ Status     │ Link   │ Description │
-    ╞═════════════╪════════════╪════════╪═════════════╡
-    │ Gi0/1       │ admin down │ down   │             │
-    ├─────────────┼────────────┼────────┼─────────────┤
-    │ Gi0/2       │ admin down │ down   │             │
-    ├─────────────┼────────────┼────────┼─────────────┤
-    │ Gi0/3       │ admin down │ down   │             │
-    ├─────────────┼────────────┼────────┼─────────────┤
-    │ Gi0/4       │ up         │ up     │ Printer_HP1 │
-    ├─────────────┼────────────┼────────┼─────────────┤
-    │ Gi0/5       │ admin down │ down   │             │
-    ╘═════════════╧════════════╧════════╧═════════════╛
+    ╒═════════════╤═════════════╤═════════════╕
+    │ Interface   │ Status      │ Description │
+    ╞═════════════╪═════════════╪═════════════╡
+    │ Gi0/1       │ admin down  │             │
+    ├─────────────┼─────────────┼─────────────┤
+    │ Gi0/2       │ admin down  │             │
+    ├─────────────┼─────────────┼─────────────┤
+    │ Gi0/3       │ admin down  │             │
+    ├─────────────┼─────────────┼─────────────┤
+    │ Gi0/4       │ up          │ Printer_HP1 │
+    ├─────────────┼─────────────┼─────────────┤
+    │ Gi0/5       │ admin down  │             │
+    ╘═════════════╧═════════════╧═════════════╛
 

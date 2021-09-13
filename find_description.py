@@ -37,26 +37,27 @@ def find_description(find_str: list, find_re: list, mode: str, enable_print: boo
                     if (findall(finding_string, line['Description'].lower()) and find_str) or \
                             (findall(re_string, line['Description']) and find_re):
                         # Если нашли совпадение в строке
-                        admin_status = line.get('Admin Status') or line.get('Link Status') or line.get('Port Status')
+                        status = line.get('Admin Status') or line.get('Link Status') or line.get('Port Status') \
+                                 or line.get('Status')
                         result.append(
                             {
                                 'Device': device,
                                 'Interface': line['Interface'],
                                 'Description': line['Description'],
-                                'AdminStatus': admin_status
+                                'Status': status
                             }
                         )
                         if enable_print:
                             if color:
                                 print(f'Оборудование: \x1b[1;34m{device}\x1b[0m')
                                 print(f'    Порт: \x1b[32m{line["Interface"]}\x1b[0m ', end='')
-                                print(f'AdminStatus: {admin_status_color(admin_status)} ' if mode == 'full' else '', end='')
+                                print(f'Status: {admin_status_color(status)} ' if mode == 'full' else '', end='')
                                 print(f'Descr: \x1b[33m{line["Description"].strip()}\x1b[0m\n'
                                       if mode == 'full' or mode == 'brief' else '')
                             else:
                                 print(f'Оборудование: {device}')
                                 print(f'    Порт: {line["Interface"]}, ', end='')
-                                print(f'AdminStatus: {admin_status_color(admin_status)}, ' if mode == 'full' else '', end='')
+                                print(f'Status: {admin_status_color(status)}, ' if mode == 'full' else '', end='')
                                 print(f'Descr: {line["Description"].strip()}\n'
                                       if mode == 'full' or mode == 'brief' else '')
     except KeyboardInterrupt:

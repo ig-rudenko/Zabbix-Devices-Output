@@ -110,7 +110,7 @@ def show_interfaces_split_version(session, privilege_mode_password: str) -> list
 def show_interfaces(session, privilege_mode_password: str) -> list:
     """
         Обнаруживаем интерфейсы на коммутаторе типа Huawei
-    :param session:              залогиненная сессия
+    :param session:                     залогиненная сессия
     :param privilege_mode_password:     пароль от привилегированного режима
     :return:                            Кортеж (список интерфейсов, тип huawei)
     """
