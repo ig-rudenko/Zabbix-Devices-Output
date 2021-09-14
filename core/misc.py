@@ -30,7 +30,7 @@ def filter_interface_mac(interfaces: list, interface_filter: str) -> tuple:
     not_uplinks = True if interface_filter == 'only-abonents' else False
     for line in interfaces:
         if (
-                (not not_uplinks and bool(findall(interface_filter, line[3])))  # интерфейсы по фильтру
+                (not not_uplinks and bool(findall(interface_filter, line[2])))  # интерфейсы по фильтру
                 or (not_uplinks and  # ИЛИ все интерфейсы, кроме:
                     'SVSL' not in line[2].upper() and  # - интерфейсов, которые содержат "SVSL"
                     'POWER_MONITORING' not in line[2].upper())  # - POWER_MONITORING
