@@ -62,7 +62,7 @@ def show_interfaces(telnet_session) -> list:
     return [
         [
             line[0],    # interface
-            line[2].replace('ready', 'down').replace('active', 'up') if 'Enabled' in line[1] else 'admin down', # status
+            line[2].replace('ready', 'down').replace('active', 'up') if 'Enable' in line[1] else 'admin down', # status
             line[3]     # desc
         ]
         for line in result
