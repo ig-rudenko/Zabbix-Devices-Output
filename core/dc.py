@@ -576,7 +576,7 @@ class DeviceConnect:
                 self.session, self.raw_interfaces, self.privilege_mode_password
             )
         if 'zte' in self.device["vendor"]:
-            pass
+            self.vlan_info, vlans_last_result = zte.get_vlans(self.session, self.raw_interfaces)
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
             pass
         if 'edge-core' in self.device["vendor"]:

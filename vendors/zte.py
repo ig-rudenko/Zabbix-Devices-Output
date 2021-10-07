@@ -112,3 +112,69 @@ def show_device_info(session):
     {send_command('show user')}
     """
     return device_info
+
+
+def get_vlans(session, interfaces: list):
+
+    def range_to_numbers(ports_string: str) -> list:
+        # print('port_string', ports_string)
+        ports_split = ports_string.split(',')
+        res_ports = []
+        # print('ports_split', ports_split)
+        if not ports_split[0]:
+            return []
+
+        for p in ports_split:
+            if not p:
+                continue
+            if '-' in p:
+                port_range = list(range(int(p.split('-')[0]), int(p.split('-')[1]) + 1))
+                # print('port_range', port_range)
+                for pr in port_range:
+                    res_ports.append(int(pr))
+            else:
+                res_ports.append(int(p))
+
+        return sorted(res_ports)
+
+    output = send_command(session, 'show vlan')
+
+    with open(f'{sys.path[0]}/templates/vlans_templates/zte_vlan.template', 'r') as template_file:
+        vlan_templ = textfsm.TextFSM(template_file)
+        result_vlan = vlan_templ.ParseText(output)
+    # print(result_vlan)
+
+    vlan_port = {}
+    vlan_info = ''
+    for vlan in result_vlan:
+        # VLAN info
+        if vlan[1].strip():
+            vlan_info += f'VLAN {vlan[0]} {vlan[4] if vlan[4] == "disabled" else ""} ({vlan[1]})\n'
+        else:
+            vlan_info += f'VLAN {vlan[0]} {vlan[4] if vlan[4] == "disabled" else ""}\n'
+
+        # VLAN ports
+        # Если не нашли влан, или он деактивирован, то пропускаем
+        if not vlan[0] or vlan[4] == "disabled":
+            continue
+        # print('\nvlan', vlan[0], vlan[1], vlan[2], vlan[3])
+        # Объединяем тегированные вланы и нетегированные в один список
+        vlan_port[int(vlan[0])] = range_to_numbers(','.join([vlan[2], vlan[3]]))
+
+    interfaces_vlan = []  # итоговый список (интерфейсы и вланы)
+
+    for line in interfaces:
+        max_letters_in_string = 20  # Ограничение на кол-во символов в одной строке в столбце VLAN's
+        vlans_compact_str = ''  # Строка со списком VLANов с переносами
+        line_str = ''
+        for vlan_id in vlan_port:
+            if int(line[0]) in vlan_port[vlan_id]:
+                if len(line_str) + len(str(vlan_id)) <= max_letters_in_string:
+                    line_str += f'{vlan_id},'
+                else:
+                    vlans_compact_str += f'{line_str}\n'
+                    line_str = f'{vlan_id},'
+        else:
+            vlans_compact_str += line_str[:-1]
+        interfaces_vlan.append(line + [vlans_compact_str])
+    return vlan_info, interfaces_vlan
