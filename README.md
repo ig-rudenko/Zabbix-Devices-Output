@@ -10,6 +10,10 @@
 * VLAN на портах;
 * Логи.
 
+
+[Дополнительный модуль](https://github.com/ig-rudenko/find_description), 
+для поиска строки в описании порта и отображения карты VLAN'ов
+
 ![img_1.png](img/img_1.png)
 ![img_2.png](img/img_2.png)
 
