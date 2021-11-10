@@ -1,4 +1,3 @@
-
 import sys
 import textfsm
 from core.commands import send_command as sendcmd

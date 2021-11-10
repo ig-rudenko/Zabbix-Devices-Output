@@ -154,19 +154,20 @@ if __name__ == '__main__':
             args.auth_mode = 'snmp'
             session.set_authentication(mode='snmp', snmp_community=args.snmp_community, snmp_port=args.snmp_port)
 
-        if args.login and args.password:
-            session.set_authentication(
-                login=args.login,
-                password=args.password,
-                privilege_mode_password=args.privilege_mode_password
-            )
-        if args.auth_group:
+        if args.auth_group and args.auth_mode != 'snmp':
             session.set_authentication(mode='group', auth_group=args.auth_group,
                                        auth_file=args.auth_file)
         if not args.auth_mode or args.auth_mode == 'auto':
             session.set_authentication(mode='auto', auth_file=args.auth_file)
         if args.auth_mode == 'mixed':
             session.set_authentication(mode='mixed', auth_file=args.auth_file)
+
+        if args.login and args.password:
+            session.set_authentication(
+                login=args.login,
+                password=args.password,
+                privilege_mode_password=args.privilege_mode_password
+            )
 
         if not session.connect(protocol=args.protocol):  # Не удалось подключиться
             show_last_saved_data(args.mode, args.ip, args.device_name)

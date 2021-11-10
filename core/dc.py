@@ -186,6 +186,11 @@ class DeviceConnect:
             model = findall(r'Model number\s*:\s*(\S+)', version)
             self.device["vendor"] = f"cisco"
 
+        # ALCATEL
+        if 'alcatel sas' in version.lower():
+            model = findall(r'(ALCATEL.+) COPYRIGHT \(C\)', version.upper())
+            self.device["vendor"] = "alcatel_sas"
+
         # D_LINK
         if 'Next possible completions:' in version:
             self.device["vendor"] = 'd-link'
@@ -434,6 +439,9 @@ class DeviceConnect:
             ]
 
         # SSH / TELNET
+        if 'alcatel_sas' in self.device["vendor"]:
+            self.raw_interfaces = alcatel_sas.show_interfaces(self.session)
+
         if 'ProCurve' in self.device["vendor"]:
             self.raw_interfaces = procurve.show_interfaces(self.session)
 
@@ -452,7 +460,7 @@ class DeviceConnect:
         if 'zte' in self.device["vendor"]:
             self.raw_interfaces = zte.show_interfaces(self.session)
 
-        if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
+        if self.device["vendor"] == 'alcatel' or 'lynksys' in self.device["vendor"]:
             self.raw_interfaces = alcatel_linksys.show_interfaces(self.session)
 
         if 'edge-core' in self.device["vendor"]:
@@ -470,10 +478,11 @@ class DeviceConnect:
         if 'juniper' in self.device['vendor']:
             self.raw_interfaces = juniper.show_interfaces(self.session)
 
-        self.device["interfaces"] = [
-            {'Interface': line[0], 'Status': line[1], 'Description': line[2]}
-            for line in self.raw_interfaces if self.raw_interfaces
-        ]
+        if self.auth_mode != 'snmp':
+            self.device["interfaces"] = [
+                {'Interface': line[0], 'Status': line[1], 'Description': line[2]}
+                for line in self.raw_interfaces if self.raw_interfaces
+            ]
 
         self.collect_data(
             mode='interfaces',
