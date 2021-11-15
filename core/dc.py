@@ -484,13 +484,14 @@ class DeviceConnect:
                 for line in self.raw_interfaces if self.raw_interfaces
             ]
 
-        self.collect_data(
-            mode='interfaces',
-            data={
-                'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
-                'data': self.device["interfaces"]
-            }
-        )
+        if self.device['interfaces']:
+            self.collect_data(
+                mode='interfaces',
+                data={
+                    'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+                    'data': self.device["interfaces"]
+                }
+            )
         return self.device["interfaces"]
 
     def get_device_info(self) -> str:
@@ -516,13 +517,15 @@ class DeviceConnect:
             self.device_info = extreme.show_device_info(self.session)
         if 'q-tech' in self.device["vendor"]:
             self.device_info = qtech.show_device_info(self.session)
-        self.collect_data(
-            mode='sys-info',
-            data={
-                'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
-                'data': self.device_info
-            }
-        )
+
+        if self.device_info:
+            self.collect_data(
+                mode='sys-info',
+                data={
+                    'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+                    'data': self.device_info
+                }
+            )
         return self.device_info
 
     def get_mac(self, description_filter: str = r'\S+') -> str:
@@ -554,13 +557,15 @@ class DeviceConnect:
             self.mac_last_result = extreme.show_mac(self.session, self.raw_interfaces, description_filter)
         if 'q-tech' in self.device["vendor"]:
             self.mac_last_result = qtech.show_mac(self.session, self.raw_interfaces, description_filter)
-        self.collect_data(
-            mode='mac_result',
-            data={
-                'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
-                'data': self.mac_last_result
-            }
-        )
+
+        if self.mac_last_result:
+            self.collect_data(
+                mode='mac_result',
+                data={
+                    'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+                    'data': self.mac_last_result
+                }
+            )
         return self.mac_last_result
 
     def get_vlans(self) -> list:
@@ -601,20 +606,23 @@ class DeviceConnect:
             {'Interface': line[0], 'Status': line[1], 'Description': line[2], "VLAN's": line[3]}
             for line in vlans_last_result
         ]
-        self.collect_data(
-            mode='vlans',
-            data={
-                'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
-                'data': self.vlans
-            }
-        )
-        self.collect_data(
-            mode='vlans_info',
-            data={
-                'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
-                'data': self.vlan_info
-            }
-        )
+
+        if self.vlans:
+            self.collect_data(
+                mode='vlans',
+                data={
+                    'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+                    'data': self.vlans
+                }
+            )
+        if self.vlan_info:
+            self.collect_data(
+                mode='vlans_info',
+                data={
+                    'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+                    'data': self.vlan_info
+                }
+            )
         return self.vlans
 
     def cable_diagnostic(self) -> str:
@@ -624,13 +632,14 @@ class DeviceConnect:
             self.cable_diag = d_link.show_cable_diagnostic(self.session, self.privilege_mode_password)
         if 'huawei' in self.device["vendor"]:
             self.cable_diag = huawei.show_cable_diagnostic(self.session, self.privilege_mode_password)
-        self.collect_data(
-            mode='cable-diag',
-            data={
-                'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
-                'data': self.cable_diag
-            }
-        )
+        if self.cable_diag:
+            self.collect_data(
+                mode='cable-diag',
+                data={
+                    'saved time': datetime.now().strftime("%d %b %Y, %H:%M:%S"),
+                    'data': self.cable_diag
+                }
+            )
         return self.cable_diag
 
     def get_logs(self) -> str:
