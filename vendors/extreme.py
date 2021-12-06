@@ -83,7 +83,8 @@ def show_device_info(telnet_session):
         command='show version detail'
     )
 
-    info += '           ┌────────────┐\n' \
+    info += '\n' \
+            '           ┌────────────┐\n' \
             '           │ Охлаждение │\n' \
             '           └────────────┘\n'
 
@@ -93,7 +94,8 @@ def show_device_info(telnet_session):
     )
 
     # TEMPERATURE
-    info += '           ┌─────────────┐\n' \
+    info += '\n' \
+            '           ┌─────────────┐\n' \
             '           │ Температура │\n' \
             '           └─────────────┘\n'
     info += send_command(
@@ -102,7 +104,8 @@ def show_device_info(telnet_session):
     )
 
     # POWER
-    info += '           ┌─────────┐\n' \
+    info += '\n' \
+            '           ┌─────────┐\n' \
             '           │ Питание │\n' \
             '           └─────────┘\n'
     info += send_command(
@@ -110,7 +113,8 @@ def show_device_info(telnet_session):
         command='show power'
     )
 
-    info += ' ┌                                    ┐\n' \
+    info += '\n' \
+            ' ┌                                    ┐\n' \
             ' │ Расширенная техническая информация │\n' \
             ' └                                    ┘\n' \
             '                   ▼\n\n' \
@@ -123,7 +127,8 @@ def show_device_info(telnet_session):
         command='debug hal show platform platformInfo'
     )
     # SLOTS
-    info += '           ┌───────┐\n' \
+    info += '\n' \
+            '           ┌───────┐\n' \
             '           │ Слоты │\n' \
             '           └───────┘\n'
     info += send_command(

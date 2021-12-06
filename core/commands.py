@@ -5,7 +5,8 @@ def strip_text(text: str) -> str:
     return text.replace("[42D", '').replace("        ", '').replace(
             "\x1b[m\x1b[60;D\x1b[K", '').replace(
             '\x08\x08\x08\x08\x08\x08\x08\x08\x08\x08          \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08',
-            '').replace('[81D[32C[80D[27C[1A[J', '').replace('[81D[35C', '').replace('[81D[34C', '').strip()
+            '').replace('[81D[32C[80D[27C[1A[J', '').replace('[81D[35C', '').\
+        replace('[81D[34C', '').replace('\x1b[0m', '').strip()
 
 
 def format_command(command: str) -> str:

@@ -1,4 +1,4 @@
-Value Port (\S\d+)
+Value Port (\S+\d+)
 Value State (\S+)
 
 Start

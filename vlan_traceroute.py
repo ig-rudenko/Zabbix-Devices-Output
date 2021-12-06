@@ -13,10 +13,11 @@ bluefon = '\x1b[1;44m'
 yellow = '\x1b[33m'
 yellowfon = '\x1b[43m'
 green = '\x1b[32m'
+white = '\x1b[5m'
 
 
 def reformatting(name: str):
-    with open(f'/{sys.path[0]}/vlan_traceroute/name_format.yaml', 'r') as file:
+    with open(f'{sys.path[0]}/vlan_traceroute/name_format.yaml', 'r') as file:
         name_format = yaml.safe_load(file)
     for n in name_format:
         if n in name:
@@ -49,7 +50,11 @@ def vlan_range(vlans_ranges: list) -> set:
     return set(vlans)
 
 
-def find_vlan(device: str, vlan_to_find: int, passed_devices: set, mode: str, desc_re: str, separate: str = '    '):
+TREE = {}
+
+
+def find_vlan(device: str, vlan_to_find: int, passed_devices: set, dict_enter: dict,
+              mode: str, desc_re: str, separate: str = ' │  ', color=False):
     """
     Осуществляет поиск VLAN'ов по портам оборудования, которое расположено в папке /root_dir/data/device/
     И имеет файл vlans.yaml
@@ -57,11 +62,17 @@ def find_vlan(device: str, vlan_to_find: int, passed_devices: set, mode: str, de
     :param device: Имя устройства, на котором осуществляется поиск
     :param vlan_to_find: VLAN, который ищем
     :param passed_devices:  Уже пройденные устройства
+    :param dict_enter:  Вхождение
     :param mode: full - отображает имена оборудования и его порты, short - отображает только имена оборудования
     :param separate: Отступ данного устройства относительно его положения в древе
     :return: кол-во устройств ниже по древу, площадь глубины древа ниже
     """
     mode = 'short' if not mode else mode
+
+    if not color:
+        clear = blue = bluefon = yellow = yellowfon = white = green = ''
+
+    dict_enter[device] = {}
 
     passed_devices.add(device)  # Добавляем узел в список уже пройденных устройств
     if not os.path.exists(f'{sys.path[0]}/data/{device}/vlans.yaml'):
@@ -100,29 +111,33 @@ def find_vlan(device: str, vlan_to_find: int, passed_devices: set, mode: str, de
         if vlan_to_find in vlans_list:
             intf_found_count += 1
 
-            if mode == 'full':
-                if desc_re and findall(desc_re, line["Description"]):
-                    print(separate, f'└ ({green}{line["Interface"]}{clear}) {yellowfon}{line["Description"]}{clear}')
-                else:
-                    print(separate, f'└ ({green}{line["Interface"]}{clear}) {yellow}{line["Description"]}{clear}')
+            dict_enter[device][line["Interface"] + ' -> ' + line["Description"]] = {}
+
+            if desc_re and findall(desc_re, line["Description"]):
+                print(separate, f'└ ({green}{line["Interface"]}{clear}) {yellowfon}{line["Description"]}{clear}')
+            else:
+                print(separate, f'└ ({green}{line["Interface"]}{clear}) {yellow}{line["Description"]}{clear}')
 
             next_device = findall(r'SVSL\S+SW\d+', line["Description"])  # Ищем в описании порта следующий узел сети
             # Приводим к единому формату имя узла сети
             next_device = reformatting(next_device[0]) if next_device else ''
+
             if next_device and next_device not in list(passed_devices):
+
                 if mode == 'short' and tree_mass > 50 and devices_down > 7:
-                    print(f'\n{separate}', f"\x1b[5m┗{clear} {device}  ")  # (устройств выше {devices_down}) масса: {tree_mass}")
+                    print(f'\n{separate}', f"{white}┗{clear} {device}  ")  # (устройств выше {devices_down}) масса: {tree_mass}")
                     devices_down = 0
                 if mode == 'full' and tree_mass > 5 and devices_down > 2:
-                    print(f'\n{separate}', f"\x1b[5m┗{clear} {device}  ")  # (устройств выше {devices_down}) масса: {tree_mass}")
+                    print(f'\n{separate}', f"{white}┗{clear} {device}  ")  # (устройств выше {devices_down}) масса: {tree_mass}")
                     devices_down = 0
                 dev_down, mass = find_vlan(
                     next_device,
                     vlan_to_find,
                     passed_devices,
-                    separate=f'    {separate}',
+                    separate=f' │  {separate}',
                     mode=mode,
-                    desc_re=desc_re
+                    desc_re=desc_re,
+                    dict_enter=dict_enter[device][line["Interface"] + ' -> ' + line["Description"]]
                 )
                 if not dev_down:
                     continue
@@ -149,16 +164,28 @@ if __name__ == '__main__':
 
     if args.vlan and args.start_device:
         try:
-            if os.path.exists(f'{sys.path[0]}/vlan_traceroute/vlan_name.yaml'):
-                with open(f'{sys.path[0]}/vlan_traceroute/vlan_name.yaml') as vlan_name_file:
+            if os.path.exists(f'{sys.path[0]}/vlan_traceroute/name_format.yaml'):
+                with open(f'{sys.path[0]}/vlan_traceroute/name_format.yaml') as vlan_name_file:
                     vlan_name = yaml.safe_load(vlan_name_file)
             passed = set()
             print(f'🔎  Начинаем трассировку VLAN > {args.vlan} <  {vlan_name.get(args.vlan) or ""}\n\n'
                   f'     ┌─ Начальное оборудование')
-            status, _ = find_vlan(args.start_device, args.vlan, passed_devices=passed, mode=args.mode, desc_re=args.find)
+            status, _ = find_vlan(args.start_device, args.vlan, passed_devices=passed, mode=args.mode, desc_re=args.find,
+                                  dict_enter=TREE)
             if not status:
                 print(f'     └ {args.start_device} Не найдено!')
             else:
                 print(f'\nТрассировка завершена!')
         except KeyboardInterrupt:
             print('\nТрассировка прервана!')
+
+    import pprint
+    # pprint.pprint(TREE)
+
+    def print_tree(tree, sep="  "):
+        for branch in tree:
+            print(sep, branch)
+            if tree[branch]:
+                print_tree(tree[branch], sep+'    ')
+
+    print_tree(TREE)
