@@ -2,3 +2,6 @@
 /auth_list.py
 /.gitignore
 /CR_DDoS_monitoring.py
+config
+db/database.db
+test*

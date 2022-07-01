@@ -4,8 +4,8 @@ import textfsm
 from core.commands import send_command as sendcmd
 
 
-def send_command(session, command: str, prompt=r"\S+#"):
-    return sendcmd(session, command, prompt, expect_command=False,
+def send_command(session, command: str, prompt=r"\S+#", before_catch=None):
+    return sendcmd(session, command, prompt, expect_command=False, before_catch=before_catch,
                    space_prompt=r"-- MORE --, next page: Space, next line: Enter, quit: Control-C")
 
 
@@ -34,5 +34,5 @@ def show_interfaces(session) -> list:
 
 def get_device_info(session):
     version = ''
-    version += send_command(session, 'show system-information')
+    version += send_command(session, 'show system-information', before_catch=r'General System Information')
     return version

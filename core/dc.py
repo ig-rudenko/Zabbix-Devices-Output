@@ -12,6 +12,7 @@ import ipaddress
 from core.database import DataBase
 import core.snmp
 from vendors import *
+import subprocess
 
 
 def ip_range(ip_input_range_list: list):
@@ -36,10 +37,10 @@ def ip_range(ip_input_range_list: list):
             else:
                 range_[num] = [0, 0]
 
-        for oct1 in range(int(range_[1][0]), int(range_[1][1])+1):
-            for oct2 in range(int(range_[2][0]), int(range_[2][1])+1):
-                for oct3 in range(int(range_[3][0]), int(range_[3][1])+1):
-                    for oct4 in range(int(range_[4][0]), int(range_[4][1])+1):
+        for oct1 in range(int(range_[1][0]), int(range_[1][1]) + 1):
+            for oct2 in range(int(range_[2][0]), int(range_[2][1]) + 1):
+                for oct3 in range(int(range_[3][0]), int(range_[3][1]) + 1):
+                    for oct4 in range(int(range_[4][0]), int(range_[4][1]) + 1):
                         result.append(f'{oct1}.{oct2}.{oct3}.{oct4}')
     return result
 
@@ -105,7 +106,8 @@ class DeviceConnect:
                     # Если есть ключ 'devices_by_name' и в нем имеется имя устройства ИЛИ
                     # есть ключ 'devices_by_ip' и в нем имеется IP устройства
                     if (iter_dict.get('devices_by_name') and self.device["name"] in iter_dict.get('devices_by_name')) \
-                            or (iter_dict.get('devices_by_ip') and self.device["ip"] in ip_range(iter_dict.get('devices_by_ip'))):
+                            or (iter_dict.get('devices_by_ip') and self.device["ip"] in ip_range(
+                        iter_dict.get('devices_by_ip'))):
                         # Логин равен списку логинов найденных в элементе 'login' или 'admin'
                         self.login = (iter_dict['login'] if isinstance(iter_dict['login'], list)
                                       else [iter_dict['login']]) if iter_dict.get('login') else ['admin']
@@ -148,7 +150,7 @@ class DeviceConnect:
             m = self.session.expect(
                 [
                     r']$',
-                    '-More-',
+                    r'-More-|--\(more\)--',
                     r'>\s*$',
                     r'#\s*',
                     pexpect.TIMEOUT
@@ -176,9 +178,9 @@ class DeviceConnect:
             huawei.login(self.session, self.privilege_mode_password)
             self.device["vendor"] = 'huawei'
             display_version_output = huawei.send_command(
-                    session=self.session,
-                    command='display version'
-                )
+                session=self.session,
+                command='display version'
+            )
             model = findall(r'Quidway\s+(\S+)\s+.*uptime is', display_version_output)
             self.device["software"] = findall(r'software, Version \S+ \(\S+ (\S+)\)', display_version_output)
 
@@ -292,9 +294,16 @@ class DeviceConnect:
         if self.auth_mode == 'snmp' or protocol == 'snmp':
             if not self.device.get("snmp_community") or not self.device.get("snmp_port"):
                 self.set_authentication(mode='snmp')
+
             # Пытаемся получить данные по SNMP
-            if core.snmp.snmpget(self.device["snmp_community"], self.device["ip"], self.device["snmp_port"],
-                                 'SNMPv2-MIB::sysName.0'):
+            result = subprocess.run(
+                    ['snmpwalk', '-Oq', '-v2c', '-c', self.device.get("snmp_community"),
+                     f'{self.device["ip"]}:{self.device["snmp_port"]}', "SNMPv2-MIB::sysName.0"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    encoding='utf-8'
+            )
+            if 'SNMPv2-MIB::sysName' in result.stdout:
                 return True
             else:
                 return False
@@ -305,19 +314,19 @@ class DeviceConnect:
         if protocol == 'ssh':
             algorithm_str = f' -oKexAlgorithms=+{algorithm}' if algorithm else ''
             cipher_str = f' -c {cipher}' if cipher else ''
-            for login, password in zip(self.login+['admin'], self.password+['admin']):
+            for login, password in zip(self.login + ['admin'], self.password + ['admin']):
                 self.session = pexpect.spawn(
                     f'ssh {login}@{self.device["ip"]}{algorithm_str}{cipher_str}'
                 )
                 while not connected:
                     login_stat = self.session.expect(
                         [
-                            r'no matching key exchange method found',           # 0
-                            r'no matching cipher found',                        # 1
-                            r'Are you sure you want to continue connecting',    # 2
-                            r'[Pp]assword:',                                    # 3
-                            r'[#>\]]\s*$',                                      # 4
-                            r'Connection closed'                                # 5
+                            r'no matching key exchange method found',  # 0
+                            r'no matching cipher found',  # 1
+                            r'Are you sure you want to continue connecting',  # 2
+                            r'[Pp]assword:',  # 3
+                            r'[#>\]]\s*$',  # 4
+                            r'Connection closed'  # 5
                         ],
                         timeout=timeout
                     )
@@ -345,7 +354,7 @@ class DeviceConnect:
                             connected = True
                             break
                         else:
-                            break   # Пробуем новый логин/пароль
+                            break  # Пробуем новый логин/пароль
                     if login_stat == 4:
                         connected = True
                 if connected:
@@ -354,18 +363,18 @@ class DeviceConnect:
         if protocol == 'telnet':
             self.session = pexpect.spawn(f'telnet {self.device["ip"]}')
             try:
-                for login, password in zip(self.login+['admin'], self.password+['admin']):
+                for login, password in zip(self.login + ['admin'], self.password + ['admin']):
                     while not connected:  # Если не авторизировались
                         login_stat = self.session.expect(
                             [
                                 r"[Ll]ogin(?![-\siT]).*:\s*$",  # 0
-                                r"[Uu]ser\s(?![lfp]).*:\s*$",   # 1
-                                r"[Nn]ame.*:\s*$",              # 2
-                                r'[Pp]ass.*:\s*$',              # 3
-                                r'Connection closed',           # 4
-                                r'Unable to connect',           # 5
-                                r'[#>\]]\s*$',                  # 6
-                                r'Press any key to continue'    # 7
+                                r"[Uu]ser\s(?![lfp]).*:\s*$",  # 1
+                                r"[Nn]ame.*:\s*$",  # 2
+                                r'[Pp]ass.*:\s*$',  # 3
+                                r'Connection closed',  # 4
+                                r'Unable to connect',  # 5
+                                r'[#>\]]\s*$',  # 6
+                                r'Press any key to continue'  # 7
                             ],
                             timeout=timeout
                         )
@@ -373,7 +382,7 @@ class DeviceConnect:
                             self.session.send(' ')
                             self.session.sendline(login)  # Вводим логин
                             self.session.sendline(password)  # Вводим пароль
-                            self.session.expect('#')
+                            self.session.expect(r'[#>\]]\s*')
 
                         if login_stat < 3:
                             self.session.sendline(login)  # Вводим логин
@@ -407,7 +416,7 @@ class DeviceConnect:
             db.add_data(
                 data=[
                     (self.device["ip"], self.device["name"], self.device["vendor"], self.auth_group, protocol,
-                     self.device["model"])
+                     self.device["model"], self.device.get("snmp_community") or '')
                 ]
             )
         # Обновляем таблицу базы данных
@@ -417,7 +426,8 @@ class DeviceConnect:
             vendor=self.device["vendor"],
             auth_group=self.auth_group,
             default_protocol=protocol,
-            model=self.device["model"]
+            model=self.device["model"],
+            snmp_community=self.device.get("snmp_community") or ''
         )
         return True
 
@@ -542,7 +552,8 @@ class DeviceConnect:
             self.mac_last_result = huawei.show_mac_huawei(self.session, self.raw_interfaces,
                                                           description_filter, self.privilege_mode_password)
         if 'zte' in self.device["vendor"]:
-            self.mac_last_result = zte.show_mac(self.session, self.raw_interfaces, description_filter, self.device["model"])
+            self.mac_last_result = zte.show_mac(self.session, self.raw_interfaces, description_filter,
+                                                self.device["model"])
         if 'alcatel' in self.device["vendor"] or 'lynksys' in self.device["vendor"]:
             self.mac_last_result = "Для данного типа оборудования просмотр MAC'ов в данный момент недоступен 🦉"
         if 'edge-core' in self.device["vendor"]:
@@ -665,5 +676,7 @@ class DeviceConnect:
             logs = logs[point.end() if point else 0:]
         elif 'zte' in self.device["vendor"]:
             logs = zte.send_command(self.session, 'show terminal log')
+        elif 'extreme' in self.device['vendor']:
+            logs = extreme.send_command(self.session, 'show log')
 
         return logs

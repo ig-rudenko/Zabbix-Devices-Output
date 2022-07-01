@@ -18,12 +18,12 @@ def format_command(command: str) -> str:
 
 
 def send_command(session, command: str, prompt: str, space_prompt: str = None, before_catch: str = None,
-                 expect_command=True) -> str:
+                 expect_command=True, num_of_expect=10) -> str:
     output = ''
     session.sendline(command)   # Отправляем команду
 
     if expect_command:
-        session.expect(command[-30:])  # Считываем введенную команду с поправкой по длине символов
+        session.expect(command[-num_of_expect:])  # Считываем введенную команду с поправкой по длине символов
     if before_catch:
         session.expect(before_catch)
 
@@ -36,7 +36,7 @@ def send_command(session, command: str, prompt: str, space_prompt: str = None, b
                     pexpect.TIMEOUT     # 2
                 ]
             )
-            output += strip_text(str(session.before.decode('utf-8')))   # Убираем лишние символы
+            output += strip_text(session.before.decode(errors='ignore'))   # Убираем лишние символы
             if match == 0:
                 break
             elif match == 1:

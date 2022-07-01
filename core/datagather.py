@@ -5,10 +5,11 @@ class DataGather:
     """
     Реализует процесс сбора состояния портов и системной информации
     """
-    def __init__(self, ip, name, auth_group, protocol):
+    def __init__(self, ip, name, auth_group, protocol, snmp_community):
         self.protocol = protocol if protocol and protocol != 'None' else 'telnet'
         self.session = DeviceConnect(ip, name)
         self.session.auth_group = auth_group if auth_group and auth_group != 'None' else ''
+        self.snmp_community = snmp_community or 'public'
 
     def collect(self, mode: str = ''):
         if mode not in ['interfaces', 'sys-info', 'vlan']:
@@ -18,13 +19,13 @@ class DataGather:
             # Если указана группа авторизации
             self.session.set_authentication(mode='group', auth_group=self.session.auth_group)
         elif self.protocol == 'snmp':
-            self.session.set_authentication(mode='snmp')
+            self.session.set_authentication(mode='snmp', snmp_community=self.snmp_community)
         else:
             self.session.set_authentication(mode='mixed')
 
         # Подключаемся с указанным протоколом
         if not self.session.connect(protocol=self.protocol):
-            return 0
+            return 0  # Прерываем, если не удалось подключиться
 
         if mode == 'interfaces':
             if self.session.get_interfaces():

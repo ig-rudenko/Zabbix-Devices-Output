@@ -29,8 +29,8 @@ def parse_argument():
     parser.add_argument("--desc-filter", dest="description_filter", default=r'\S+',
                         help='Regular exception (default \'\\S+)\'')
     parser.add_argument("--auth-file", dest="auth_file", default=f'{sys.path[0]}/auth.yaml')
-    parser.add_argument("--auth-mode", dest="auth_mode", help="Authorization type (default mixed)", default='mixed',
-                        choices=['default', 'group', 'auto', 'mixed'])
+    parser.add_argument("--auth-mode", dest="auth_mode", help="Authorization type (default mixed)",
+                        choices=['default', 'group', 'auto', 'mixed', 'snmp'])
     parser.add_argument("--auth-group", dest="auth_group", help="Groups from auth file", default=None)
     parser.add_argument("--data-gather", dest="data_gather", help="Collect data from devices in database \n"
                                                                   "(interfaces, sys-info, vlan)",
@@ -102,41 +102,99 @@ if __name__ == '__main__':
         zabbix_login = config.get("Zabbix", "ZabbixAPILogin")
         zabbix_pass = config.get("Zabbix", "ZabbixAPIPassword")
 
+        default_snmp_community = config.get('SNMP', 'default')
+        default_protocol = config.get('AUTH', 'default_protocol')
+
         db = DataBase()
         zabbix = ZabbixAPI(zabbix_url)
         zabbix.login(user=zabbix_login, password=zabbix_pass)
         groups_ids = zabbix.hostgroup.get(filter={"name": args.zabbix_rebase_groups})
         for group in groups_ids:
-            hosts = zabbix.host.get(groupids=group['groupid'], selectInterfaces=['ip'])  # Список узлов сети в группе
+            hosts = zabbix.host.get(
+                output=['host', 'status'],
+                groupids=group['groupid'],
+                selectInterfaces=['ip'],
+                selectMacros='extend'
+            )
+
             for host in hosts:  # Для каждого найденного узла сети
+
+                # Преобразовываем интерфейсы и убираем localhost
+                host['interfaces'] = [h['ip'] for h in host['interfaces'] if h['ip'] != '127.0.0.1']
+                if not host['interfaces']:
+                    continue
+
+                # Ищем в БД хост
+                item = db.get_item(device_name=host["host"])
+
+                # Если нашли более одной записи, то необходимо удалить
+                if len(item) > 1 or host["status"] == '1':
+                    for line in item:
+                        if line[0] != host['interfaces'][0] or host["status"] == '1':
+                            print(f'Удаляем {line[1]} {line[0]}')
+                            db.execute(f"DELETE FROM equipment where ip='{line[0]}'")
+
                 if host["status"] == '1':
-                    continue  # Пропускаем деактивированный узел сети
-                item = db.get_item(ip=host['interfaces'][0]['ip'])
-                if item and item[0][1] != host["host"]:
+                    continue
+
+                # Смотрим макросы
+                macros = {}
+                for line in host['macros']:
+                    macros[line['macro']] = line.get('value')
+
+                if item and item[0][0] != host['interfaces'][0]:
                     # Обновляем имя узла сети, если он уже имеется в базе и имена отличаются
-                    print('Обновляем', host["host"], host['interfaces'][0]['ip'])
-                    db.update(ip=host['interfaces'][0]['ip'], device_name=host['host'])
+                    print('Обновляем', item[0][0], item[0][1], ' -> ', host["host"], host['interfaces'][0])
+                    db.update(
+                        ip=host['interfaces'][0],
+                        device_name=host['host'],
+                        snmp_community=macros.get('{$SNMP_COMMUNITY}') or item[0][6],
+                        default_protocol=macros.get('{$ZDO_PROTOCOL}') or item[0][4],
+                        auth_group=macros.get('{$ZDO_AUTH_GROUP}') or item[0][3]
+                    )
                 elif not item:
                     # Создаем новую запись в таблицу
-                    print('Добавляем', host["host"], host['interfaces'][0]['ip'])
+                    print('Добавляем', host["host"], host['interfaces'][0])
                     db.add_data(
                         data=[
-                            (host['interfaces'][0]['ip'], host['host'], '', '', 'snmp', '')
+                            (
+                                host['interfaces'][0],                           # ip  (PK)
+                                host['host'],                                    # device_name
+                                '',                                              # vendor
+                                macros.get('{$ZDO_AUTH_GROUP}') or '',           # auth_group
+                                macros.get('{$ZDO_PROTOCOL}') or default_protocol or 'telnet',       # default_protocol
+                                '',                                              # model
+                                macros.get('{$SNMP_COMMUNITY}') or default_snmp_community or ''  # snmp_community
+                            )
                         ]
                     )
+
+                # Обновляем макросы
+                else:
+                    db.update(
+                        device_name=host['host'],
+                        snmp_community=macros.get('{$SNMP_COMMUNITY}') or item[0][6] or default_snmp_community or '',
+                        default_protocol=macros.get('{$ZDO_PROTOCOL}') or item[0][4] or default_protocol or 'telnet',
+                        auth_group=macros.get('{$ZDO_AUTH_GROUP}') or item[0][3] or ''
+                    )
+
         sys.exit()
 
     if args.data_gather:
         # Автоматический сбор информации
         db = DataBase()
-        table = db.get_table()
-        with ThreadPoolExecutor() as executor:
+        table = db.get_table()  # Смотрим всю таблицу из БД
+        with ThreadPoolExecutor() as executor:  # Многопоточность
             for line in table:
-                data_gather = DataGather(ip=line[0], name=line[1], auth_group=line[3], protocol=line[4])
-                executor.submit(data_gather.collect, args.data_gather)
+
+                # Собираем данные
+                executor.submit(
+                    DataGather(ip=line[0], name=line[1], auth_group=line[3], protocol=line[4], snmp_community=line[6]).collect,
+                    args.data_gather
+                )
         sys.exit()
 
-    ip_check = subprocess.run(['ping', '-c', '3', '-n', args.ip], stdout=subprocess.DEVNULL)
+    ip_check = subprocess.run(['ping', '-W', '1', '-c', '1', '-n', args.ip], stdout=subprocess.DEVNULL)
     # Проверка на доступность: 0 - доступен, 1 и 2 - недоступен
     if ip_check.returncode == 2:
         print(f'Неправильный ip адрес: {args.ip}')
@@ -150,14 +208,17 @@ if __name__ == '__main__':
     elif ip_check.returncode == 0:
         session = DeviceConnect(args.ip, device_name=args.device_name)  # Создаем экземпляр класса
 
-        if args.protocol == 'snmp':
+        if args.protocol == 'snmp' or (not args.protocol and args.snmp_community):
+            # Если указан протокол как snmp, либо было упомянуто snmp community
             args.auth_mode = 'snmp'
             session.set_authentication(mode='snmp', snmp_community=args.snmp_community, snmp_port=args.snmp_port)
 
         if args.auth_group and args.auth_mode != 'snmp':
+            # Если указана группа авторизации и протокол не snmp
             session.set_authentication(mode='group', auth_group=args.auth_group,
                                        auth_file=args.auth_file)
-        if not args.auth_mode or args.auth_mode == 'auto':
+        if (not args.auth_mode or args.auth_mode == 'auto') and not args.auth_group:
+            # Если не указана группа или мод
             session.set_authentication(mode='auto', auth_file=args.auth_file)
         if args.auth_mode == 'mixed':
             session.set_authentication(mode='mixed', auth_file=args.auth_file)

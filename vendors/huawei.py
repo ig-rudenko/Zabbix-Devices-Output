@@ -313,7 +313,7 @@ def show_vlans(session, interfaces, privilege_mode_password: str) -> tuple:
                     break
             vlans_group = sub(r'(?<=undo).+vlan (.+)', '', output)   # Убираем строчки, где есть "undo"
             vlans_group = list(set(findall(r'vlan (.+)', vlans_group)))   # Ищем строчки вланов, без повторений
-            switchport_mode = list(set(findall(r'port (hybrid|trunk|access)', output)))  # switchport mode
+            switchport_mode = list(set(findall(r'port (hybrid|trunk|access|default)', output)))  # switchport mode
             max_letters_in_string = 20  # Ограничение на кол-во символов в одной строке в столбце VLAN's
             vlans_compact_str = ''      # Строка со списком VLANов с переносами
             line_str = ''
@@ -328,31 +328,9 @@ def show_vlans(session, interfaces, privilege_mode_password: str) -> tuple:
             result.append(line + [vlans_compact_str])
 
     if huawei_type == 'huawei-2326':
-        session.sendline(f"display vlan")
-        session.expect(r"VID\s+Status\s+Property")
+        vlans_info = send_command(session, 'display vlan')
     else:
-        session.sendline(f"display vlan all")
-        session.expect(r"display vlan all")
-
-    vlans_info = ''
-    while True:
-        match = session.expect(
-            [
-                r'>',
-                "  ---- More ----",
-                pexpect.TIMEOUT
-            ]
-        )
-        page = str(session.before.decode('utf-8'))
-        vlans_info += page.strip()
-        if match == 0:
-            break
-        elif match == 1:
-            session.send(" ")
-            vlans_info += '\n'
-        else:
-            print("    Ошибка: timeout")
-            break
+        vlans_info = send_command(session, 'display vlan all')
 
     with open(f'{sys.path[0]}/templates/vlans_templates/{huawei_type}_vlan_info.template', 'r') as template_file:
         vlans_info_template = textfsm.TextFSM(template_file)

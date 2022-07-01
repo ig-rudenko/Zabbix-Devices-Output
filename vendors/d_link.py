@@ -84,15 +84,17 @@ def show_device_info(session, privilege_mode_password: str):
 
     # VERSION
     session.sendline('show switch')
-    session.expect('Command: show switch')
-    session.expect('\S+#')
+    session.expect(r'Command: show switch')
+    if session.expect([r'\S+#', r'Previous Page']):
+        session.sendline('q')
     info += session.before.decode('utf-8')
-    info += ''
+    info += '\n'
 
     # CPU
     session.sendline('show utilization cpu')
-    session.expect('Command: show utilization cpu\W+')
-    session.expect('\S+#')
+    session.expect(r'Command: show utilization cpu\W+')
+    if session.expect([r'\S+#', r'Previous Page']):
+        session.sendline('q')
     info += '   ┌──────────────┐\n'
     info += '   │ ЗАГРУЗКА CPU │\n'
     info += '   └──────────────┘\n'
@@ -106,20 +108,22 @@ def show_cable_diagnostic(session, privilege_mode_password: str):
 
     # CABLE_DIAGNOSTIC
     session.sendline('cable_diag ports all')
-    session.expect('Perform Cable Diagnostics ...\W+')
-    session.expect('\S+#')
-    info += '''
-            ┌─────────────────────┐
-            │ Диагностика кабелей │
-            └─────────────────────┘
-
-    Pair Open — конец линии (либо обрыв) на растоянии ХХ метров
-    Link Up, длинна ХХ метров
-    Link Down, OK — нельзя измерить длинну кабеля (но нагрузка есть)
-    Link Down, No Cable — нет кабеля
-
-    '''
-    info += session.before.decode('utf-8')
+    if session.expect([r'Perform Cable Diagnostics ...\W+', 'Available commands:']):
+        info = 'Данное устройство не поддерживает диагностику портов'
+    else:
+        session.expect(r'\S+#')
+        info += '''
+                ┌─────────────────────┐
+                │ Диагностика кабелей │
+                └─────────────────────┘
+    
+        Pair Open — конец линии (либо обрыв) на растоянии ХХ метров
+        Link Up, длинна ХХ метров
+        Link Down, OK — нельзя измерить длинну кабеля (но нагрузка есть)
+        Link Down, No Cable — нет кабеля
+    
+        '''
+        info += session.before.decode('utf-8')
     return info
 
 

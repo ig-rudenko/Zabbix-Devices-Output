@@ -7,11 +7,14 @@ from core.commands import send_command as sendcmd
 from core.misc import filter_interface_mac
 
 
-def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: str = None):
+def send_command(session, command: str, prompt: str = r'\S+#\s*$', next_catch: str = None, exp=True):
     return sendcmd(session, command, prompt,
                    space_prompt=r"More: <space>,  Quit: q or CTRL\+Z, One line: <return> |"
                                 r"More\? Enter - next line; Space - next page; Q - quit; R - show the rest\.",
-                   before_catch=next_catch)
+                   before_catch=next_catch,
+                   num_of_expect=20,
+                   expect_command=exp
+                   )
 
 
 def show_interfaces(session, eltex_type: str = 'eltex-mes') -> list:
@@ -65,7 +68,7 @@ def show_mac(session, interfaces: list, interface_filter: str, eltex_type: str =
 
         if 'eltex-mes' in eltex_type:
             session.sendline(f'show mac address-table interface {interface_normal_view(intf[0])}')
-            session.expect(r'Aging time is \d+ \S+')
+            session.expect(r'Aging time is \d+ \S+|[-]{10}\s+\r\n')
             while True:
                 match = session.expect(
                     [
@@ -96,7 +99,7 @@ def show_mac(session, interfaces: list, interface_filter: str, eltex_type: str =
                 session=session,
                 command=f'show mac address-table interface {interface_normal_view(intf[0])} |'
                         f' include \"{interface_normal_view(intf[0]).lower()}\"'
-            )
+            ) + '\n\n'
 
     return mac_output
 
@@ -146,7 +149,8 @@ def show_vlans(session, interfaces) -> tuple:
         if not line[0].startswith('V'):
             output = send_command(
                 session=session,
-                command=f'show running-config interface {interface_normal_view(line[0])}'
+                command=f'show running-config interface {interface_normal_view(line[0])}',
+                exp=False
             )
             vlans_group = findall(r'vlan [add ]*(\S*\d)', output)   # Строчки вланов
             switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode

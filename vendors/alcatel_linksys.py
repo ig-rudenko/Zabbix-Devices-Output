@@ -23,7 +23,7 @@ def show_interfaces(telnet_session) -> list:
         session=telnet_session,
         command='show interfaces description'
     )
-    print(port_desc)
+
     with open(f'{sys.path[0]}/templates/interfaces/alcatel_linksys2.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_des = int_des_.ParseText(port_desc)  # Ищем интерфейсы
@@ -36,11 +36,6 @@ def show_interfaces(telnet_session) -> list:
     with open(f'{sys.path[0]}/templates/interfaces/alcatel_linksys_link.template', 'r') as template_file:
         int_des_ = textfsm.TextFSM(template_file)
         result_port_link = int_des_.ParseText(port_status)  # Ищем интерфейсы
-    print(port_status)
-
-    # pprint.pprint(result_port_state)
-    # pprint.pprint(result_port_des)
-    pprint.pprint(result_port_link)
 
     result = []
     for position, line in enumerate(result_port_state):

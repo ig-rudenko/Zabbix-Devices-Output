@@ -7,8 +7,8 @@ from core.commands import send_command as sendcmd
 from core.misc import filter_interface_mac
 
 
-def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
-    return sendcmd(session, command, prompt, space_prompt="--More--", before_catch=next_catch)
+def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None, expect_command=True):
+    return sendcmd(session, command, prompt, space_prompt="--More--", before_catch=next_catch, expect_command=expect_command)
 
 
 def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
@@ -45,7 +45,8 @@ def show_mac(telnet_session, interfaces: list, interface_filter: str) -> str:
 def show_interfaces(telnet_session) -> list:
     output = send_command(
         session=telnet_session,
-        command='show interface ethernet status'
+        command='show interface ethernet status',
+        expect_command=False
     )
     output = sub(r'[\W\S]+\nInterface', '\nInterface', output)
     with open(f'{sys.path[0]}/templates/interfaces/q-tech.template', 'r') as template_file:

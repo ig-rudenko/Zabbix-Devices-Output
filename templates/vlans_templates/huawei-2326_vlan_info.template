@@ -2,4 +2,4 @@ Value VLANID (\d+)
 Value NAME (\S+)
 
 Start
-  ^${VLANID}\s*\S+\s*\S+\s*\S+\s*\S+\s*${NAME} -> Record
+  ^${VLANID}\s*(enable|disable)\s*\S+\s*\S+\s*\S+\s*${NAME} -> Record

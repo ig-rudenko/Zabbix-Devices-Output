@@ -61,7 +61,8 @@ class DataBase:
                     vendor          text,
                     auth_group      text,
                     default_potocol text,
-                    model           text
+                    model           text,
+                    snmp_community  text
                 );
             ''')
             return True
@@ -79,7 +80,7 @@ class DataBase:
         for row in data:
             try:
                 self.add_data.cursor.execute(
-                    'insert into equipment values (?, ?, ?, ?, ?, ?)',
+                    'insert into equipment values (?, ?, ?, ?, ?, ?, ?)',
                     row
                 )
             except sqlite3.IntegrityError:
@@ -94,7 +95,7 @@ class DataBase:
         print(
             tabulate(
                 self.show_table.cursor.fetchall(),
-                headers=['ip', 'device_name', 'vendor', 'auth_group', 'default_protocol', 'model'],
+                headers=['ip', 'device_name', 'vendor', 'auth_group', 'default_protocol', 'model', 'snmp_community'],
                 tablefmt="presto",
                 showindex="always"
             )
@@ -133,11 +134,11 @@ class DataBase:
             raise error
 
     @ConnectionDB(database=db_path)
-    def update(self, ip: str, **kwargs):
+    def update(self, device_name: str, **kwargs):
         kv = []
         for key in kwargs:
             kv.append(f"{key}='{kwargs[key]}'")
         string = ','.join(kv)
         self.execute(f"""
-                UPDATE equipment SET {string} WHERE ip='{ip}'
+                UPDATE equipment SET {string} WHERE device_name='{device_name}'
         """)

@@ -7,8 +7,8 @@ from core.commands import send_command as sendcmd
 from core.misc import filter_interface_mac
 
 
-def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None):
-    return sendcmd(session, command, prompt=prompt, space_prompt="--More--", before_catch=next_catch)
+def send_command(session, command: str, prompt: str = r'\S+#$', next_catch: str = None, expc=True):
+    return sendcmd(session, command, prompt=prompt, space_prompt="--More--", before_catch=next_catch, expect_command=expc)
 
 
 def show_mac(session, interfaces: list, interface_filter: str) -> str:
@@ -159,9 +159,10 @@ def show_vlans(session, interfaces) -> tuple:
             output = send_command(
                 session=session,
                 command=f"show running-config interface {interface_normal_view(line[0])}",
-                next_catch="Building configuration"
+                next_catch="Building configuration",
+                expc=False
             )
-            vlans_group = findall(r'(?<=access|llowed) vlan [ad]*(\S*\d)', output)   # Строчки вланов
+            vlans_group = findall(r'(?<=access|llowed) vlan [ad\s]*(\S*\d)', output)   # Строчки вланов
             switchport_mode = findall(r'switchport mode (\S+)', output)  # switchport mode
             max_letters_in_string = 20  # Ограничение на кол-во символов в одной строке в столбце VLAN's
             vlans_compact_str = ''      # Строка со списком VLANов с переносами
